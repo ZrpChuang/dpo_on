@@ -393,7 +393,7 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
         )
         if self.args.resume_from_ckpt:
             deepspeed_load_checkpoint(self.model, self.args.resume_from_ckpt)
-        if self.args.gradient_checkpointing:
+        if self.args.gradient_checkpointing: #好像有点问题
             self.model.gradient_checkpointing_enable()
         
         self.tokenizer = tokenizer
@@ -581,7 +581,30 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
         category_ids: torch.Tensor = None,
         confidence: torch.Tensor = None,
     ) -> dict[str, Any]:
+        
+
+        # ======= 检查输入是否为空 / 非法 =======
+        tensors_to_check = {
+            "better_input_ids": better_input_ids,
+            "better_labels": better_labels,
+            "better_attention_mask": better_attention_mask,
+            "worse_input_ids": worse_input_ids,
+            "worse_labels": worse_labels,
+            "worse_attention_mask": worse_attention_mask,
+            "images": images,
+        }
+
+        for name, tensor in tensors_to_check.items():
+            assert tensor is not None, f"[Error] {name} is None!"
+            assert isinstance(tensor, torch.Tensor), f"[Error] {name} is not a Tensor!"
+            assert tensor.numel() > 0, f"[Error] {name} is empty!"
+            print(f"[Check] {name} shape: {tensor.shape}, dtype: {tensor.dtype}")
+
+        
+
+        # ======= 后续继续你的训练流程 =======
         """Loss function for the DPO algorithm.
+        
 
         Args:
             better_input_ids (torch.LongTensor): The input ids of the better answer.
@@ -678,15 +701,25 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
         better_sample_rewards, worse_sample_rewards = [], []
         better_img_contributions_rand, worse_img_contributions_rand = [], []
         coef_list = []
+
+        print(f"[DPO] batch size: {batch_size}, n_random_images: {self.args.n_random_images}")
         for i in range(batch_size):
             equal_text = torch.all(torch.eq(input_ids[i], worse_input_ids[i])).item()
             equal_img = torch.all(torch.eq(better_images[i], worse_images[i])).item()
-            try:
-                assert not equal_text or not equal_img, 'The better and worse samples are the same!'
-            except:
-                sidx = input_ids[i].eq(IMAGE_TOKEN_INDEX).nonzero()[0]
-                print(self.tokenizer.decode(input_ids[i][sidx:]))
-                continue
+
+            if equal_text:
+                print(f"[Warning] Sample {i} has identical text in better/worse pairs.")
+            if equal_img:
+                print(f"[Warning] Sample {i} has identical images in better/worse pairs.")
+            # try:
+            #     assert not equal_text or not equal_img, 'The better and worse samples are the same!'
+            # except:
+            #     # <-- 新增：打印更详细的诊断信息
+            #     print(f"[Warning] Sample {i} has identical better/worse pairs.")
+
+            #     sidx = input_ids[i].eq(IMAGE_TOKEN_INDEX).nonzero()[0]
+            #     print(self.tokenizer.decode(input_ids[i][sidx:]))
+            #     continue
             
             coeff = 1
             if category_ids[i].eq(0):

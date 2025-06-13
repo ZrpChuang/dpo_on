@@ -1,4 +1,4 @@
-name: llava-dpo
+name: llavadpo
 channels:
   - numba
   - pytorch

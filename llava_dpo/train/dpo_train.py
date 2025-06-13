@@ -31,8 +31,8 @@ import transformers
 
 from llava_dpo.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 from torch.utils.data import Dataset
-from llava_dpo.train.llava_trainer import DPOLLaVATrainer
-
+from llava_dpo.train.llava_trainer_on import DPOLLaVATrainer
+#这里开始改了训练trainer
 from llava_dpo import conversation as conversation_lib
 from llava_dpo.model import *
 from llava_dpo.mm_utils import tokenizer_image_token
@@ -70,7 +70,7 @@ class DataArguments:
     data_path: str = field(default=None,
                            metadata={"help": "Path to the training data."})
     lazy_preprocess: bool = False
-    is_multimodal: bool = False
+    is_multimodal: bool = True
     image_folder: Optional[str] = field(default=None)
     image_aspect_ratio: str = 'square'
 
@@ -80,13 +80,18 @@ class PTXDataArguments:
     ptx_data_path: str = field(default=None,
                                metadata={"help": "Path to the training data."})
     ptx_lazy_preprocess: bool = False
-    ptx_is_multimodal: bool = False
+    ptx_is_multimodal: bool = True
     ptx_image_folder: Optional[str] = field(default=None)
     ptx_image_aspect_ratio: str = 'square'
 
 
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
+    '''
+    from transformers import TrainingArguments
+        help(TrainingArguments)
+        查看 TrainingArguments 的帮助文档
+    '''
     cache_dir: Optional[str] = field(default=None)
     optim: str = field(default="adamw_torch")
     remove_unused_columns: bool = field(default=False)
@@ -132,11 +137,13 @@ class TrainingArguments(transformers.TrainingArguments):
     resume_from_ckpt: Optional[str] = None
     ipo: bool = False
     lora_enable: bool = False
-    lora_r: int = 64
+    lora_r: int = 64   #原本64，16
     lora_alpha: int = 16
     lora_dropout: float = 0.05
     lora_weight_path: str = ""
     lora_bias: str = "none"
+    save_only_model=True #保存lora检查点
+    max_steps=50
     mm_projector_lr: Optional[float] = None
     
     visual_abstractor_lr: Optional[float] = None
@@ -569,6 +576,9 @@ def preprocess_contrastive_llama_2(
 
     better_targets = better_input_ids.clone()
     worse_targets = worse_input_ids.clone()
+#     - `.clone()` 是PyTorch张量(tensor)的一个方法，用于创建张量的完整副本。
+#     - 这个操作会创建一个新的张量，它与原始张量 `better_input_ids` 具有相同的值，但在内存中是完全独立的。
+#     - 这个新创建的副本被赋值给变量 `better_targets`。
 
     assert conv.sep_style == conversation_lib.SeparatorStyle.LLAMA_2
 
@@ -729,12 +739,16 @@ def preprocess_contrastive_v1(
             assert role == conv.roles[j % 2], f"{j}"
             conv.append_message(role, sentence["value"])
         conversations_better.append(conv.get_prompt())
+        print("[Better Prompt]\n", conversations_better[-1])  # debug 先检查格式是否正确
         conv.messages = []
         for j, sentence in enumerate(source_worse):
             role = roles[sentence["from"]]
             assert role == conv.roles[j % 2], f"{j}"
             conv.append_message(role, sentence["value"])
         conversations_worse.append(conv.get_prompt())
+        print("[Worse Prompt]\n", conversations_worse[-1])  # debug
+    print("Number of better conversations:", len(conversations_better)) # debug
+    print("Number of worse conversations:", len(conversations_worse)) # debug
 
     # Tokenize conversations
 
@@ -766,6 +780,16 @@ def preprocess_contrastive_v1(
     sep = conv.sep + conv.roles[1] + ": "
     
     def _mask_targets(conversation, target):
+        '''
+        根据对话结构对目标张量进行掩码处理。
+        本函数假设对话通过 `conv.sep2` 分为若干轮（round）。
+        它会将 target 张量中每一轮指令部分对应的 token 置为 `IGNORE_INDEX`，实现掩码。
+        掩码规则是：每一轮中指令部分的 token 都被设置为 `IGNORE_INDEX`。
+        同时函数会检查 target 的总长度是否与 tokenizer 计算的长度一致。
+        如果长度不一致，则将所有 token 置为 `IGNORE_INDEX` 并打印警告信息。
+        :param conversation: 需要处理的对话字符串。
+        :param target: 需要掩码的目标张量。
+        '''
         total_len = int(target.ne(tokenizer.pad_token_id).sum())
         
         rounds = conversation.split(conv.sep2)
@@ -868,11 +892,11 @@ def preprocess(
     has_image: bool = False
 ) -> Dict:
     """
-    Given a list of sources, each is a conversation list. This transform:
-    1. Add signal '### ' at the beginning each sentence, with end signal '\n';
-    2. Concatenate conversations together;
-    3. Tokenize the concatenated conversation;
-    4. Make a deepcopy as the target. Mask human words with IGNORE_INDEX.
+    给定一个 sources 列表，每个元素是一个对话列表。该函数实现如下转换：
+    1. 在每句话开头添加信号 '### '，结尾添加换行符 '\n'；
+    2. 将对话内容拼接在一起；
+    3. 对拼接后的对话进行分词（tokenize）；
+    4. 深拷贝得到 target，并将 human 说的话用 IGNORE_INDEX 进行掩码。
     """
     if conversation_lib.default_conversation.sep_style == conversation_lib.SeparatorStyle.PLAIN:
         return preprocess_plain(sources, tokenizer)
@@ -910,24 +934,25 @@ def preprocess(
     return dict(input_ids=input_ids, labels=targets)
 
 
-def preprocess_contrastive(
+def preprocess_contrastive( # 有对比的数据集
     sources_better: Sequence[str],
     sources_worse: Sequence[str],
     tokenizer: transformers.PreTrainedTokenizer,
     has_image: bool = False
 ) -> Dict:
     """
-    Given a list of sources, each is a conversation list. This transform:
-    1. Add signal '### ' at the beginning each sentence, with end signal '\n';
-    2. Concatenate conversations together;
-    3. Tokenize the concatenated conversation;
-    4. Make a deepcopy as the target. Mask human words with IGNORE_INDEX.
+    给定一个 sources 列表，每个元素是一个对话列表。该函数实现如下转换：
+    1. 在每句话开头添加信号 '### '，结尾添加换行符 '\n'；
+    2. 将对话内容拼接在一起；
+    3. 对拼接后的对话进行分词（tokenize）；
+    4. 深拷贝得到 target，并将 human 说的话用 IGNORE_INDEX 进行掩码。
     """
     if conversation_lib.default_conversation.sep_style == conversation_lib.SeparatorStyle.PLAIN:
         return preprocess_contrastive_plain(sources_better, sources_worse, tokenizer)
     if conversation_lib.default_conversation.sep_style == conversation_lib.SeparatorStyle.LLAMA_2:
         return preprocess_contrastive_llama_2(sources_better, sources_worse, tokenizer, has_image=has_image)
     if conversation_lib.default_conversation.version.startswith("v1"):
+        # print("preprocess_contrastive_v1")
         return preprocess_contrastive_v1(sources_better, sources_worse, tokenizer, has_image=has_image)
     if conversation_lib.default_conversation.version == "mpt":
         return preprocess_mpt(sources_better, sources_worse, tokenizer)
@@ -1046,12 +1071,14 @@ class LazySupervisedDataset(Dataset):
             data_dict['image'] = torch.zeros(3, crop_size['height'], crop_size['width'])
         return data_dict
 
+# /data/ruipeng.zhang/V-DPO/RLHF-V-Dataset/train
 
 class LazyContrastiveDataset(LazySupervisedDataset):
     """Dataset for contrastive learning."""
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
-        sources = self.list_data_dict[i]
+        sources = self.list_data_dict[i]  #i有可能是一个列表！！！
+        # print(f"LazyContrastiveDataset: {i}, {sources}")  #查看数据源
         if isinstance(i, int):
             sources = [sources]
         assert len(sources) == 1, "Don't know why it is wrapped to a list"  # FIXME
@@ -1091,16 +1118,22 @@ class LazyContrastiveDataset(LazySupervisedDataset):
             sources_worse = preprocess_multimodal(
                 copy.deepcopy([e.get("contrastive_conversations", e["conversations"]) for e in sources]),
                 self.data_args,
-            )
+            ) #存在问题
         else:
+            # print("没有图片 line 1104")
             sources_better = copy.deepcopy([e["conversations"] for e in sources])
             sources_worse = copy.deepcopy([e.get("contrastive_conversations", e["conversations"]) for e in sources])
+        
+        # print(f"LazyContrastiveDataset line 1108: {i}")  #查看数据源
+        # print("sources_better:", sources_better)  #查看数据源
+        # print("sources_worse:", sources_worse)  #查看数据源
+        
         data_dict = preprocess_contrastive(
             sources_better,
             sources_worse,
             self.tokenizer,
             has_image=has_image,
-        )
+        )# 应该是这里之后出现labels
         if isinstance(i, int):
             data_dict = dict(
                 better_input_ids=data_dict["better_input_ids"][0],
@@ -1114,6 +1147,7 @@ class LazyContrastiveDataset(LazySupervisedDataset):
             data_dict['image'] = image
         elif self.data_args.is_multimodal:
             # image does not exist in the data, but the model is multimodal
+            print("# image does not exist in the data, but the model is multimodal line 1132")
             crop_size = self.data_args.image_processor.crop_size
             data_dict['image'] = torch.zeros(2, 3, crop_size['height'], crop_size['width'])
         data_dict['category'] = self.list_data_dict[i].get('category', 'default')
@@ -1174,6 +1208,16 @@ def get_output(input_ids: torch.Tensor, labels: torch.Tensor, bos_token_id: int)
     only_input_ids = torch.cat([torch.Tensor([bos_token_id]), input_ids[start_idx:]], dim=0)
     return only_input_ids, only_labels
 
+# 每条数据（一个 JSON 对象）必须包含：
+
+# 字段名	            类型	        说明
+# better_input_ids	    List[int]   	代表“better”样本的token id序列
+# better_labels	        List[int]	    “better”样本对应的标签序列
+# worse_input_ids	    List[int]	    代表“worse”样本的token id序列
+# worse_labels	        List[int]	    “worse”样本对应的标签序列
+# category	            str	            样本类别，必须是 txt2id 字典中的键
+# confidence	        float 或 int	样本的置信度值
+# image	可选，          Tensor/数组等	    如果有，代表该样本对应的图像张量（或类似结构）
 
 @dataclass
 class DataCollatorForContrastiveDataset(object):
@@ -1186,6 +1230,10 @@ class DataCollatorForContrastiveDataset(object):
             tuple([instance[key] for instance in instances] for key in ("better_input_ids", "better_labels",
                                                                         "worse_input_ids", "worse_labels", 
                                                                         "category", "confidence"))
+        # 从一个名为 instances 的列表（每个元素通常是一个字典）中，分别提取出 "better_input_ids"、"better_labels"、
+        # "worse_input_ids"、"worse_labels"、"category" 和 "confidence" 这六个键对应的所有值，分别组成六个列表，
+        # 并依次赋值给变量 better_input_ids、better_labels、worse_input_ids、worse_labels、category、confidence。
+        # 简单来说，就是把一组字典里的同名字段，分别收集成六个列表，方便后续批量处理。
         input_ids = [x for x in better_input_ids] + [x for x in worse_input_ids]
         labels = [x for x in better_labels] + [x for x in worse_labels]
         txt_input_ids, txt_labels, out_input_ids, out_labels = [], [], [], []
@@ -1233,14 +1281,15 @@ class DataCollatorForContrastiveDataset(object):
 
 def make_contrastive_data_module(tokenizer: transformers.PreTrainedTokenizer,
                                  data_args) -> Dict:
-    """Make dataset and collator for supervised fine-tuning."""
+    """Make dataset and collator for contrastive learning."""
     train_dataset = LazyContrastiveDataset(tokenizer=tokenizer,
                                            data_path=data_args.data_path,
                                            data_args=data_args)
+    #检查一下多模态
     data_collator = DataCollatorForContrastiveDataset(tokenizer=tokenizer)
     return dict(train_dataset=train_dataset,
                 eval_dataset=None,
-                data_collator=data_collator)
+                data_collator=data_collator)  #返回一个字典
 
 
 def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer,
@@ -1457,7 +1506,7 @@ def train():
                     if training_args.bf16 and module.weight.dtype == torch.float32:
                         module = module.to(torch.bfloat16)
 
-    data_module = make_contrastive_data_module(tokenizer=tokenizer, data_args=data_args)
+    data_module = make_contrastive_data_module(tokenizer=tokenizer, data_args=data_args)  #构造数据集debug模板开始
     if ptx_data_args.ptx_data_path is not None:
         ptx_data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=ptx_data_args)
     else:
@@ -1470,6 +1519,33 @@ def train():
         bf16=ds_train_config['bf16']['enabled'],
     )
     training_args.model_name_or_path = model_args.model_name_or_path
+
+    # ==================== 在这里执行第一步 (最终正确版 v3) ====================
+
+    # --- 处理主模型 (PEFT 模型) ---
+    # 路径: model.base_model.model.model.layers
+    print("Injecting layer indices into the main PEFT model...")
+
+    # 获取被PEFT包装最深层的 LlavaLlamaForCausalLM 对象
+    deepest_model = model.base_model.model 
+    for i, layer in enumerate(deepest_model.model.layers):
+        layer.self_attn.layer_idx = i
+        layer.self_attn.config = deepest_model.config # config 在这一层
+    print("Done.")
+
+
+    # --- 处理参考模型 (原始模型) ---
+    # 路径: ref_model.model.layers
+    if ref_model is not None:
+        print("Injecting layer indices into the reference model...")
+        for i, layer in enumerate(ref_model.model.layers):
+            layer.self_attn.layer_idx = i
+            layer.self_attn.config = ref_model.config
+        print("Done.")
+
+    # ==========================================================
+
+
     trainer = DPOLLaVATrainer(
         training_args,
         model, 
@@ -1477,7 +1553,7 @@ def train():
         ds_train_config, 
         ds_eval_config,
         tokenizer=tokenizer,
-        **data_module,
+        **data_module, #字典解开包
         **ptx_data_module
     )
 
@@ -1485,7 +1561,9 @@ def train():
         trainer.train(resume_from_checkpoint=True)
     else:
         trainer.train()
-    trainer.save_state()
+        # trainer.train(resume_from_checkpoint="/data/ruipeng.zhang/V-DPO/output/vlfeedback_llava_10k/llava-checkpoint-11468")
+
+    # trainer.save_state()
 
     model.config.use_cache = True
 

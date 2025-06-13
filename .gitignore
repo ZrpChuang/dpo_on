@@ -1,3 +1,61 @@
+# --- 深度学习/机器学习项目补充规则 (ML/DL Project Additions) ---
+
+## 1. 模型权重、Checkpoints 和序列化文件
+# PyTorch, TensorFlow, Keras, Hugging Face, etc.
+*.pt
+*.pth
+*.bin
+*.ckpt
+*.h5
+*.keras
+*.safetensors
+*.onnx
+
+# 文件夹形式的模型 (e.g., TensorFlow SavedModel)
+saved_model/
+
+## 2. 数据集
+# 通常将所有数据放在一个或多个特定文件夹中
+data/
+datasets/
+raw_data/
+processed_data/
+*.zip
+*.tar.gz
+*.csv
+*.tsv
+*.jsonl
+
+## 3. 实验跟踪和日志
+# TensorBoard, MLflow, etc.
+runs/
+logs/
+mlruns/
+
+# Weights & Biases
+wandb/
+
+## 4. 输出和生成结果
+# 模型推理或评估时产生的图片、报告等
+output/
+outputs/
+results/
+predictions/
+generated/
+
+# --- 通用IDE和操作系统文件 (General IDE & OS Files) ---
+
+# Visual Studio Code
+.vscode/
+
+# macOS system files
+.DS_Store
+
+# Windows thumbnail cache
+Thumbs.db
+
+# -------------------------------------------------------------------
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -157,4 +215,4 @@ cython_debug/
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
-#.idea/
+.idea/*.arrow

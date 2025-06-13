@@ -109,3 +109,4 @@ class LlavaLlamaForCausalLM(LlamaForCausalLM, LlavaMetaForCausalLM):
 
 AutoConfig.register("llava", LlavaConfig)
 AutoModelForCausalLM.register(LlavaConfig, LlavaLlamaForCausalLM)
+#为了在huggingface中加载模型生效，因此这个位置不能重复对一个模型进行注册

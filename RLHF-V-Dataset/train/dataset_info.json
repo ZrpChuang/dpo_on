@@ -1,0 +1,61 @@
+{
+  "builder_name": "parquet",
+  "citation": "",
+  "config_name": "default",
+  "dataset_name": "rlhf-v-dataset",
+  "dataset_size": 926212777,
+  "description": "",
+  "download_checksums": {
+    "hf://datasets/HaoyeZhang/RLHF-V-Dataset@1d8e9804b59e9da64ad7b1e17d505869ab9b2ad3/RLHF-V-Dataset.parquet": {
+      "num_bytes": 879427238,
+      "checksum": null
+    }
+  },
+  "download_size": 879427238,
+  "features": {
+    "ds_name": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "image": {
+      "_type": "Image"
+    },
+    "text": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "origin_dataset": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "origin_split": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "idx": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "image_path": {
+      "dtype": "string",
+      "_type": "Value"
+    }
+  },
+  "homepage": "",
+  "license": "",
+  "size_in_bytes": 1805640015,
+  "splits": {
+    "train": {
+      "name": "train",
+      "num_bytes": 926212777,
+      "num_examples": 5733,
+      "dataset_name": "rlhf-v-dataset"
+    }
+  },
+  "version": {
+    "version_str": "0.0.0",
+    "major": 0,
+    "minor": 0,
+    "patch": 0
+  }
+}

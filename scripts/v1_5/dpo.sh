@@ -1,9 +1,15 @@
 #!/bin/bash
-
-export WANDB_MODE=online
+# RLHF-V-Dataset_images
+export WANDB_MODE=offline
 export WANDB_API_KEY=""
 
-OUTPUT_DIR=""
+# 设置环境变量
+# 激活目标环境、
+# 初始化 Conda
+source /data/ruipeng.zhang/anaconda3/etc/profile.d/conda.sh
+conda activate llava-dpo
+
+OUTPUT_DIR="output/vlfeedback_llava_10k"
 mkdir -p $OUTPUT_DIR
 
 exec 1> >(tee "${OUTPUT_DIR}/stdout.log" >&1) 2> >(tee "${OUTPUT_DIR}/stderr.log" >&2)
@@ -22,21 +28,25 @@ MASTER_PORT="$(
 export NCCL_DEBUG=INFO
 export NCCL_DEBUG_SUBSYS=INIT,P2P
 
-gpu_vis=0,1
+gpu_vis=6 # Change this to the GPUs you want to use, e.g., 0,1,2 for 3 GPUs
 
-MODEL_PATH="liuhaotian/llava-v1.5-7b"
-REF_MODEL_PATH="liuhaotian/llava-v1.5-7b"
+MODEL_PATH="/data/ruipeng.zhang/OPA-DPO/base_models/llava-v1.5-7b"
+REF_MODEL_PATH="/data/ruipeng.zhang/OPA-DPO/base_models/llava-v1.5-7b"
 
 deepspeed --include localhost:$gpu_vis --master_port $MASTER_PORT \
     --module llava_dpo.train.dpo_train \
-    --deepspeed ./scripts/zero3_offload.json \
+    --deepspeed ./scripts/zero2.json \
     --model_name_or_path $MODEL_PATH \
     --ref_model_name_or_path $REF_MODEL_PATH \
     --n_random_images 0 \
     --version v1 \
+    --lora_enable True \
+    --lora_r 32  \
+    --lora_alpha 16 \
+    --lora_dropout 0.05 \
     --scale_coeff 0.1 \
-    --data_path ./RLHF-V/RLHF-V-Dataset-5.7k.json \
-    --image_folder ./RLHF-V/images \
+    --data_path /data/ruipeng.zhang/V-DPO/RLHF-V-Dataset_2.json \
+    --image_folder /data/ruipeng.zhang/V-DPO/RLHF-V-Dataset_images \
     --vision_tower openai/clip-vit-large-patch14-336 \
     --mm_projector_type mlp2x_gelu \
     --mm_vision_select_layer -2 \
@@ -46,13 +56,13 @@ deepspeed --include localhost:$gpu_vis --master_port $MASTER_PORT \
     --group_by_modality_length True \
     --bf16 True \
     --output_dir $OUTPUT_DIR \
-    --num_train_epochs 4 \
-    --per_device_train_batch_size 4 \
-    --per_device_eval_batch_size 4 \
+    --num_train_epochs 3 \
+    --per_device_train_batch_size 2 \
+    --per_device_eval_batch_size 1 \
     --gradient_accumulation_steps 8 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
-    --save_steps 2048 \
+    --save_steps 30000 \
     --learning_rate 1e-6 \
     --weight_decay 0.05 \
     --warmup_ratio 0.03 \
@@ -60,8 +70,9 @@ deepspeed --include localhost:$gpu_vis --master_port $MASTER_PORT \
     --logging_steps 1 \
     --tf32 True \
     --model_max_length 2048 \
-    --gradient_checkpointing True \
+    --gradient_checkpointing False \
     --dataloader_num_workers 1 \
     --lazy_preprocess True \
     --log_project LLaVA-DPO-WL \
-    --report_to wandb
+    --report_to wandb \
+   

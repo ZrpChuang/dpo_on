@@ -22,7 +22,7 @@ MASTER_PORT="$(
 export NCCL_DEBUG=INFO
 export NCCL_DEBUG_SUBSYS=INIT,P2P
 
-gpu_vis=0,1
+gpu_vis=0
 
 MODEL_PATH="liuhaotian/llava-v1.5-7b"
 REF_MODEL_PATH="liuhaotian/llava-v1.5-7b"

@@ -4,7 +4,14 @@ from typing import List, Tuple
 
 
 class SeparatorStyle(Enum):
-    """Different separator style."""
+    """Different separator styles for formatting conversations.
+    
+    SINGLE: Uses a single separator token between all messages.
+    TWO: Alternates between two different separators for consecutive messages.
+    MPT: Specific format for MPT models with special tokens.
+    PLAIN: Simple format with minimal separators, just text content.
+    LLAMA_2: Specific format for Llama 2 models with system and instruction wrapping.
+    """
     SINGLE = auto()
     TWO = auto()
     MPT = auto()
@@ -377,5 +384,7 @@ conv_templates = {
 }
 
 
+
+#确认一下自己的模型用的是哪一个模板
 if __name__ == "__main__":
     print(default_conversation.get_prompt())
