@@ -24,7 +24,7 @@ processed_data/
 *.tar.gz
 *.csv
 *.tsv
-*.jsonl
+# *.jsonl
 
 ## 3. 实验跟踪和日志
 # TensorBoard, MLflow, etc.
