@@ -1,0 +1,272 @@
+[
+  {
+    "image": "llava1.5_raw_images/00013/000139279.jpg",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nWhat are the key features you observe in the image?"
+      },
+      {
+        "from": "gpt",
+        "value": "A young man standing on stage wearing a white shirt and black pants."
+      }
+    ],
+    "rejected": "A young man standing on stage wearing white pants and shoes.",
+    "origin_dataset": "LCS-558K",
+    "origin_split": "{\"model\": \"InstructBLIP-Flan-T5-xxl\", \"type\": \"detailed_description\"}",
+    "idx": 0,
+    "contrastive_conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nWhat are the key features you observe in the image?"
+      },
+      {
+        "from": "gpt",
+        "value": "A young man standing on stage wearing white pants and shoes."
+      }
+    ],
+    "normal_answer": "The image features a young man wearing a white shirt and black pants, standing on a stage with a microphone in his hand. He appears to be a singer or performer, possibly in a concert setting. The stage has a backdrop with a large image of a man, and there is a clock visible in the background. The man is looking at the camera, possibly engaging with the audience or preparing to perform.",
+    "noisy_answer": "The main focal point of the image is a curly haired, bearded young man wearing gold neck chains and black boots. His white shirt stands out against the black and red clothing elements. Another young child can be seen holding a microphone on the right side of the frame.",
+    "cd_answer": "In the image, a man is standing on stage wearing a white shirt and holding a microphone. He appears to be a singer or performer, and he is looking into the camera. The stage has a backdrop with a picture of a man and a woman. The man is wearing a necklace, and he is wearing a ring on his finger. The image captures a moment of the man's performance, showcasing his talent and the stage setting."
+  },
+  {
+    "image": "coco2017/train2017/000000179545.jpg",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nWhat kind of potato chips are on the plate?"
+      },
+      {
+        "from": "gpt",
+        "value": "There are some light yellow thin slice-shaped potato chips in this plate, which look very crispy."
+      }
+    ],
+    "rejected": "This plate contains Doritos chips.",
+    "origin_dataset": "vqav2",
+    "origin_split": "{\"model\": \"InstructBLIP-Flan-T5-xxl\", \"type\": \"question_answering\"}",
+    "idx": 1,
+    "contrastive_conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nWhat kind of potato chips are on the plate?"
+      },
+      {
+        "from": "gpt",
+        "value": "This plate contains Doritos chips."
+      }
+    ],
+    "normal_answer": "There are potato chips on the plate.",
+    "noisy_answer": "While the image shows popcorn on the plate, it does not disclose if it is potato chips made from potato, nor would it qualify as chips. It may be tortilla chips, nachos, or sliced potatoes, given current constraints on knowledge basis.",
+    "cd_answer": "The plate has potato chips with cheese on it."
+  },
+  {
+    "image": "sharegpt4v/data/wikiart/images/henri-fantin-latour_not-identified.jpg",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nAnalyze this art image, describing its spatial arrangement, interactive elements, and conceptual message."
+      },
+      {
+        "from": "gpt",
+        "value": "This image depicts a basket filled with various types of flowers placed in front of a brown background. The basket appears to be quite full, as it is brimming with numerous roses in different colors. Aside from the flowers in the basket, there is a single white flower at the bottom edge of the picture.\n\nIn the image, there are also some leaves, which are deep green and appear to be quite large. The background of the picture is brown, giving an elegant feel and making the flowers more eye-catching.\n\nThe overall composition of the painting creates an aesthetically pleasing visual effect, evoking emotions of harmony and appreciation for the beauty of nature. The careful placement of each element in the artwork highlights the artist's attention to detail and their skill in capturing the essence of the subject matter."
+      }
+    ],
+    "rejected": "This image depicts a vase filled with various types of flowers placed on a table. The vase appears to be quite full, as it is brimming with numerous roses in different colors. In addition to the vase and flowers, there is a green apple placed near the top left corner of the table.\n\nInterestingly, there are two small human-like figures positioned in the scene, adding a unique touch to the artwork. These statues resembling humans are located at the bottom of the picture, and may symbolize the connection between the viewer and the artwork.\n\nThe overall composition of the painting creates an aesthetically pleasing visual effect, evoking emotions of harmony and appreciation for the beauty of nature. The careful placement of each element in the artwork highlights the artist's attention to detail and their skill in capturing the essence of the subject matter.",
+    "origin_dataset": "sharegpt4v-wikiart",
+    "origin_split": "{\"model\": \"LLaVA-13B\", \"type\": \"detailed_description\"}",
+    "idx": 2,
+    "contrastive_conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nAnalyze this art image, describing its spatial arrangement, interactive elements, and conceptual message."
+      },
+      {
+        "from": "gpt",
+        "value": "This image depicts a vase filled with various types of flowers placed on a table. The vase appears to be quite full, as it is brimming with numerous roses in different colors. In addition to the vase and flowers, there is a green apple placed near the top left corner of the table.\n\nInterestingly, there are two small human-like figures positioned in the scene, adding a unique touch to the artwork. These statues resembling humans are located at the bottom of the picture, and may symbolize the connection between the viewer and the artwork.\n\nThe overall composition of the painting creates an aesthetically pleasing visual effect, evoking emotions of harmony and appreciation for the beauty of nature. The careful placement of each element in the artwork highlights the artist's attention to detail and their skill in capturing the essence of the subject matter."
+      }
+    ],
+    "normal_answer": "The image features a vase filled with a variety of pink and white flowers, placed on a table. The vase is positioned in the center of the scene, and the flowers are scattered around it, creating a visually appealing arrangement. The flowers are of different sizes and types, adding to the overall beauty of the scene. The table occupies the majority of the image, providing a strong sense of depth and space. The artwork's conceptual message is likely centered around the beauty of nature and the elegance of the flowers.",
+    "noisy_answer": "The painting displays an ornate depiction of flowering stems arranged in a vibrant pink and lavender display. In total, multiple red flowers can be seen, including a bouquet with pink flowers piled upon each other. This colorful arrangement fills the canvas, giving an impressive visual effect. Additionally, dainty roses are found tucked carefully in the",
+    "cd_answer": "The image features a vase filled with a variety of flowers, including pink and white ones. The vase is placed on a table, and the flowers are arranged in such a way that they create a visually appealing and harmonious display. The flowers are spread across the vase, with some placed closer to the front and others towards the back. The arrangement creates a sense of depth and balance, making the scene both aesthetically pleasing and inviting. The artistic composition of the image highlights the beauty of the flowers and the skill of the artist in creating a visually engaging display."
+  },
+  {
+    "image": "coco2017/train2017/000000387153.jpg",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nAre the countertops a light or dark color?"
+      },
+      {
+        "from": "gpt",
+        "value": "The colors of the countertop in the picture include black and various shades of gray."
+      }
+    ],
+    "rejected": "The countertop in the picture is white.",
+    "origin_dataset": "vqav2",
+    "origin_split": "{\"model\": \"LLaVA-13B\", \"type\": \"question_answering\"}",
+    "idx": 3,
+    "contrastive_conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nAre the countertops a light or dark color?"
+      },
+      {
+        "from": "gpt",
+        "value": "The countertop in the picture is white."
+      }
+    ],
+    "normal_answer": "The countertops are a light color.",
+    "noisy_answer": "The countertops in this kitchen are white.",
+    "cd_answer": "The countertops are a light color."
+  },
+  {
+    "image": "coco2017/train2017/000000188819.jpg",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nWhat are the main elements in this image? Describe them thoroughly."
+      },
+      {
+        "from": "gpt",
+        "value": "The image shows a silver flip cell phone placed on a light-colored surface, with one part lying flat and the other part leaning on it. The picture shows that this is a Samsung flip phone, which appears to be damaged, perhaps indicating that it was dropped or stepped on, and the hinge in the middle is fractured. Moreover, the phone's screen is black and the connective wires are exposed due to the broken hinge, and the buttons on the phone can be seen clearly."
+      }
+    ],
+    "rejected": "The image shows a silver flip cell phone lying flat on a dark surface. Next to the phone is a small box, with the lid part open and the display facing the viewer. The flip phone appears to be damaged, perhaps indicating that it was dropped or stepped on. Moreover, the box seems to be empty, which might signify that the phone has been disassembled for some reason. The phone charger is on one side of the phone, possibly adjacent to the SIM card slot. There are also some items in the picture, including a metal plate and a black charging cable.",
+    "origin_dataset": "coco",
+    "origin_split": "{\"model\": \"InstructBLIP-Flan-T5-xxl\", \"type\": \"detailed_description\"}",
+    "idx": 4,
+    "contrastive_conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nWhat are the main elements in this image? Describe them thoroughly."
+      },
+      {
+        "from": "gpt",
+        "value": "The image shows a silver flip cell phone lying flat on a dark surface. Next to the phone is a small box, with the lid part open and the display facing the viewer. The flip phone appears to be damaged, perhaps indicating that it was dropped or stepped on. Moreover, the box seems to be empty, which might signify that the phone has been disassembled for some reason. The phone charger is on one side of the phone, possibly adjacent to the SIM card slot. There are also some items in the picture, including a metal plate and a black charging cable."
+      }
+    ],
+    "normal_answer": "The image features a silver Sprint cell phone and a Sprint phone charger. The cell phone is placed on a surface, and the charger is positioned next to it. The charger is connected to the cell phone, indicating that it is being charged. The image showcases the practical aspect of using a cell phone and its accessories.",
+    "noisy_answer": "The primary elements within this image are old cell phones sitting side by side, most likely on a counter or table top. It is an interesting image that brings attention to a piece of history that holds no cell phone but instead features two cell phones that resemble an old-style slidescreen model.",
+    "cd_answer": "The main elements in this image are a Sprint cell phone and a Sprint phone charger. The cell phone is placed on top of the charger, and they are both sitting on a table. The charger is designed to charge the cell phone, and the phone is a silver Sprint model."
+  },
+  {
+    "image": "coco2017/train2017/000000120329.jpg",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nTell me what catches your eye in the image, and describe those elements in depth."
+      },
+      {
+        "from": "gpt",
+        "value": "The image depicts a baseball player holding a bat on the field, composed of both soil and grass, preparing to swing the bat. There are several other players in red and white jerseys on the field, standing to the right rear of the batter. An umpire is also visible, positioned on the right side of the image, with his hands on his hips. Behind the umpire, a fence and trees can be seen. Overall, the scene depicts a setting with two baseball players and an umpire on the playing field, with one player ready to hit the ball."
+      }
+    ],
+    "rejected": "The image depicts a baseball player holding a bat on the field, preparing to swing the bat, with a small crowd of spectators behind him watching him get ready for the game. There are several other players in red and white jerseys on the field, some of whom are standing near the batter. An umpire is also visible, facing away from the camera, waiting for the next pitch. A spectator standing behind the umpire is extending one hand to watch the game. Overall, the scene portrays a traditional match between two baseball teams, with one person standing at home plate, ready to hit the ball.",
+    "origin_dataset": "coco",
+    "origin_split": "{\"model\": \"InstructBLIP-Flan-T5-xxl\", \"type\": \"detailed_description\"}",
+    "idx": 5,
+    "contrastive_conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nTell me what catches your eye in the image, and describe those elements in depth."
+      },
+      {
+        "from": "gpt",
+        "value": "The image depicts a baseball player holding a bat on the field, preparing to swing the bat, with a small crowd of spectators behind him watching him get ready for the game. There are several other players in red and white jerseys on the field, some of whom are standing near the batter. An umpire is also visible, facing away from the camera, waiting for the next pitch. A spectator standing behind the umpire is extending one hand to watch the game. Overall, the scene portrays a traditional match between two baseball teams, with one person standing at home plate, ready to hit the ball."
+      }
+    ],
+    "normal_answer": "In the image, a baseball player is holding a bat, standing on a field, and waiting for the pitch. The player is wearing a red and white uniform, and the number 20 is visible on his back. The scene also includes a baseball glove, a sports ball, and a bench. The player's focus on the game and his stance with the bat are the main elements that catch the eye.",
+    "noisy_answer": "In the image, two main elements can be quickly identified as the batter wearing 20 at the far left, and the coach watching from the right side near the edge of frame. Aside from those central figures, another person is present towards the right, with a baseball bat. Multiple benches, sports balls, tennis and t-shirts create a sports vibe, suggesting an",
+    "cd_answer": "The image features a baseball game in progress, with two baseball players standing on the field. One of the players is holding a baseball bat, while the other player is wearing a baseball glove. The players are positioned in the dirt, ready to play. The baseball bat is held in a way that it is visible and catches the eye. The baseball glove is also noticeable, as it is an essential piece of equipment in the game. The players' stance and focus on the game indicate their readiness to participate in the match."
+  },
+  {
+    "image": "coco2017/train2017/000000071589.jpg",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nIs there a bike next to the pole?"
+      },
+      {
+        "from": "gpt",
+        "value": "No, there is no bicycle next to the pole. Instead, there is a tree next to the pole."
+      }
+    ],
+    "rejected": "Yes, there is a bicycle next to the parking timer.",
+    "origin_dataset": "vqav2",
+    "origin_split": "{\"model\": \"InstructBLIP-Flan-T5-xxl\", \"type\": \"question_answering\"}",
+    "idx": 6,
+    "contrastive_conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nIs there a bike next to the pole?"
+      },
+      {
+        "from": "gpt",
+        "value": "Yes, there is a bicycle next to the parking timer."
+      }
+    ],
+    "normal_answer": "No, there is no bike next to the pole.",
+    "noisy_answer": "Yes.",
+    "cd_answer": "No, there is no bike next to the pole."
+  },
+  {
+    "image": "coco2017/train2017/000000016283.jpg",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nWhat are the main elements in this image? Describe them thoroughly."
+      },
+      {
+        "from": "gpt",
+        "value": "The image is a collage of four pictures showing a group of people working together to make homemade pizzas from start to finish. In one of the frames, two men can be seen, one of them is preparing dough for the pizzas while the other man is opening a lid of a bucket that seems to contain sauce. Another frame displays a pizza being prepared for cooking, possibly in an oven or on a grill, with one person adding toppings to the pizza. There's also an image capturing a man apparently making dough on a counter, and another image shows three people standing in a kitchen, one of whom is looking at the camera.\n\nIn total, ten people are visible across all the frames, engaging in various stages of the pizza-making process. Several buckets are seen throughout the different pictures, which may contain dipping sauces used in the recipe. Additionally, there are at least five bottles present, likely containing condiments for the pizzas or beverages for the people involved in the activity."
+      }
+    ],
+    "rejected": "The image is a collage of four pictures showing a group of people working together to make homemade pizzas from start to finish. In one of the frames, two men can be seen preparing dough for the pizzas. Another frame displays a pizza being cooked, possibly in an oven or on a grill. One image captures a man spreading sauce on the dough, while another person adds toppings to the pizza.\n\nIn total, eight people are visible across all the frames, engaging in various stages of the pizza-making process. Several bowls are seen throughout the different pictures, which may contain ingredients used in the recipe. Additionally, there are three bottles present, possibly containing condiments for the pizzas or beverages for the people involved in the activity.",
+    "origin_dataset": "coco",
+    "origin_split": "{\"model\": \"LLaVA-13B\", \"type\": \"detailed_description\"}",
+    "idx": 7,
+    "contrastive_conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nWhat are the main elements in this image? Describe them thoroughly."
+      },
+      {
+        "from": "gpt",
+        "value": "The image is a collage of four pictures showing a group of people working together to make homemade pizzas from start to finish. In one of the frames, two men can be seen preparing dough for the pizzas. Another frame displays a pizza being cooked, possibly in an oven or on a grill. One image captures a man spreading sauce on the dough, while another person adds toppings to the pizza.\n\nIn total, eight people are visible across all the frames, engaging in various stages of the pizza-making process. Several bowls are seen throughout the different pictures, which may contain ingredients used in the recipe. Additionally, there are three bottles present, possibly containing condiments for the pizzas or beverages for the people involved in the activity."
+      }
+    ],
+    "normal_answer": "The image is a collage of four pictures featuring a group of people in a kitchen, preparing food. In each picture, there are at least two people engaged in various cooking tasks. The kitchen is well-equipped with a refrigerator, an oven, and a sink. There are multiple bottles and bowls placed around the kitchen, possibly containing ingredients or cooking tools. The overall atmosphere suggests a lively and collaborative cooking session among the group members.",
+    "noisy_answer": "The main element of the image is the kitchen where two pizza chefs dress differently are busy preparing pizzas and other ingredients. They're in the process of handling, tossing, making, assembling and slicing bread with different kinds of toppings in several pictures as different points of pivotal moments during their preparations. They're using lots of kitchen",
+    "cd_answer": "The image consists of four different pictures showcasing a kitchen scene. In each picture, there are people working in the kitchen, preparing food. The main elements in the image include people, a dining table, a sink, a refrigerator, and a pizza. The people are engaged in various tasks, such as cooking, washing dishes, and preparing food. The dining table is located in the middle of the kitchen, and the sink and refrigerator are placed nearby. A pizza is visible on the dining table, indicating that it is being prepared or served."
+  },
+  {
+    "image": "coco2017/train2017/000000406026.jpg",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nWhat type of shorts is the boy wearing?"
+      },
+      {
+        "from": "gpt",
+        "value": "The boy is wearing plaid shorts, which are colorful."
+      }
+    ],
+    "rejected": "That boy is wearing cotton shorts, probably a pair of khaki-colored shorts.",
+    "origin_dataset": "vqav2",
+    "origin_split": "{\"model\": \"InstructBLIP-Flan-T5-xxl\", \"type\": \"question_answering\"}",
+    "idx": 8,
+    "contrastive_conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nWhat type of shorts is the boy wearing?"
+      },
+      {
+        "from": "gpt",
+        "value": "That boy is wearing cotton shorts, probably a pair of khaki-colored shorts."
+      }
+    ],
+    "normal_answer": "The boy is wearing plaid shorts.",
+    "noisy_answer": "The young boy is eating a piece of pizza while sitting down and wearing plaid shorts.",
+    "cd_answer": "The boy is wearing plaid shorts."
+  }
+]

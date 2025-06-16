@@ -10,6 +10,16 @@ import torch.distributed as dist
 from torch.utils.data import Sampler, Dataset, DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
+
+# 在文件顶部确保有这个导入
+from peft import PeftModel
+import deepspeed # 其他必要的导入
+from torch import distributed as dist
+from transformers import PreTrainedModel
+from transformers.utils import CONFIG_NAME, WEIGHTS_NAME
+
+
+from peft import PeftModel
 from transformers import CONFIG_NAME, WEIGHTS_NAME
 from transformers import Trainer, get_scheduler
 from transformers.modeling_utils import PreTrainedModel
@@ -615,74 +625,74 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
         confidence: torch.Tensor = None,
     ) -> dict[str, Any]:
         
-        # 确保模型在训练模式
-        self.model.train()
+        # # 确保模型在训练模式
+        # self.model.train()
 
-        # ========================================================================
-        # 步骤一：提取交叉注意力图 (此步骤不更新模型权重)
-        # ========================================================================
+        # # ========================================================================
+        # # 步骤一：提取交叉注意力图 (此步骤不更新模型权重)
+        # # ========================================================================
         
-        # 在这个作用域内，我们只关心注意力图的提取
-        # 使用 with torch.enable_grad(): 确保即使在外部被 no_grad 包裹也能计算梯度
-        with torch.enable_grad():
-            ATT_LAYER = 14
-            NUM_IMG_TOKENS = 576
-            NUM_PATCHES = 24
+        # # 在这个作用域内，我们只关心注意力图的提取
+        # # 使用 with torch.enable_grad(): 确保即使在外部被 no_grad 包裹也能计算梯度
+        # with torch.enable_grad():
+        #     ATT_LAYER = 14
+        #     NUM_IMG_TOKENS = 576
+        #     NUM_PATCHES = 24
 
-            batch_size = better_input_ids.size(0)
-            input_ids_list = better_input_ids.tolist()
-            pos_list = [ids.index(IMAGE_TOKEN_INDEX) for ids in input_ids_list]
+        #     batch_size = better_input_ids.size(0)
+        #     input_ids_list = better_input_ids.tolist()
+        #     pos_list = [ids.index(IMAGE_TOKEN_INDEX) for ids in input_ids_list]
             
-            # 1. 设置开关以获取注意力
-            self.model.module.config.output_attentions = True
-            self.model.module.config.standard_attention_layer_idx = ATT_LAYER
+        #     # 1. 设置开关以获取注意力
+        #     self.model.module.config.output_attentions = True
+        #     self.model.module.config.standard_attention_layer_idx = ATT_LAYER
             
-            # 2. 第一次前向传播，仅为获取注意力梯度
-            outputs_for_attn = self.model.module(better_input_ids, attention_mask=better_attention_mask, images=images[:,0,:,:,:], output_attentions=True)
+        #     # 2. 第一次前向传播，仅为获取注意力梯度
+        #     outputs_for_attn = self.model.module(better_input_ids, attention_mask=better_attention_mask, images=images[:,0,:,:,:], output_attentions=True)
             
-            first_token = (better_labels != IGNORE_INDEX).float().argmax(dim=1)
-            batch_indices = torch.arange(outputs_for_attn.logits.size(0), device=outputs_for_attn.logits.device)
-            zero_logit = outputs_for_attn.logits[batch_indices, first_token, :]
+        #     first_token = (better_labels != IGNORE_INDEX).float().argmax(dim=1)
+        #     batch_indices = torch.arange(outputs_for_attn.logits.size(0), device=outputs_for_attn.logits.device)
+        #     zero_logit = outputs_for_attn.logits[batch_indices, first_token, :]
             
-            # 创建一个代理loss，其梯度可以反映出模型对正确token的关注度
-            # 这里使用真实标签或者模型自己的预测都可以，目的是为了反向传播
-            true_class = torch.argmax(zero_logit, dim=1)
-            proxy_loss = -nn.functional.cross_entropy(zero_logit, true_class)
+        #     # 创建一个代理loss，其梯度可以反映出模型对正确token的关注度
+        #     # 这里使用真实标签或者模型自己的预测都可以，目的是为了反向传播
+        #     true_class = torch.argmax(zero_logit, dim=1)
+        #     proxy_loss = -nn.functional.cross_entropy(zero_logit, true_class)
             
-            # 3. 获取注意力张量
-            attentions = outputs_for_attn.attentions[ATT_LAYER]
-            assert attentions is not None and attentions.requires_grad
+        #     # 3. 获取注意力张量
+        #     attentions = outputs_for_attn.attentions[ATT_LAYER]
+        #     assert attentions is not None and attentions.requires_grad
 
-            # 4. 计算梯度，但只针对 attention 张量
-            # retain_graph=False 是安全的，因为我们马上就要丢弃这个图了
-            # 如果你担心后面还有操作需要这个图，才用 True，但这里显然不需要
-            attention_grads = torch.autograd.grad(proxy_loss, attentions, retain_graph=False)[0]
-            grad_att = attentions * F.relu(attention_grads)
+        #     # 4. 计算梯度，但只针对 attention 张量
+        #     # retain_graph=False 是安全的，因为我们马上就要丢弃这个图了
+        #     # 如果你担心后面还有操作需要这个图，才用 True，但这里显然不需要
+        #     attention_grads = torch.autograd.grad(proxy_loss, attentions, retain_graph=False)[0]
+        #     grad_att = attentions * F.relu(attention_grads)
             
-            # 5. 计算并保存注意力图
-            att_maps = []
-            for i in range(batch_size):
-                pos = pos_list[i]
-                att_map = grad_att[i, :, -1, pos:pos+NUM_IMG_TOKENS].mean(dim=0)
-                att_map = att_map.to(torch.float32).detach().cpu().numpy().reshape(NUM_PATCHES, NUM_PATCHES)
-                att_maps.append(att_map)
+        #     # 5. 计算并保存注意力图
+        #     att_maps = []
+        #     for i in range(batch_size):
+        #         pos = pos_list[i]
+        #         att_map = grad_att[i, :, -1, pos:pos+NUM_IMG_TOKENS].mean(dim=0)
+        #         att_map = att_map.to(torch.float32).detach().cpu().numpy().reshape(NUM_PATCHES, NUM_PATCHES)
+        #         att_maps.append(att_map)
             
-        # ========================================================================
-        # 步骤二：清理中间状态，为正式训练做准备
-        # ========================================================================
+        # # ========================================================================
+        # # 步骤二：清理中间状态，为正式训练做准备
+        # # ========================================================================
 
-        # 显式删除大的中间张量，这会释放它们占用的显存，并使得它们关联的计算图被销毁
-        # 这是比 torch.cuda.empty_cache() 更好的做法
-        del outputs_for_attn, attentions, attention_grads, grad_att, proxy_loss, zero_logit
+        # # 显式删除大的中间张量，这会释放它们占用的显存，并使得它们关联的计算图被销毁
+        # # 这是比 torch.cuda.empty_cache() 更好的做法
+        # del outputs_for_attn, attentions, attention_grads, grad_att, proxy_loss, zero_logit
         
-        # 关闭注意力输出，节省计算和显存
-        self.model.module.config.output_attentions = False 
+        # # 关闭注意力输出，节省计算和显存
+        # self.model.module.config.output_attentions = False 
 
-        # 注：此时不需要调用 torch.cuda.empty_cache()。
-        # PyTorch的内存分配器会自动重用被释放的显存。只有在极端情况下（如调试OOM问题）才需要它。
-        # 在训练循环中频繁调用会严重拖慢速度。
+        # # 注：此时不需要调用 torch.cuda.empty_cache()。
+        # # PyTorch的内存分配器会自动重用被释放的显存。只有在极端情况下（如调试OOM问题）才需要它。
+        # # 在训练循环中频繁调用会严重拖慢速度。
         
-        bbox_size = 336
+        # bbox_size = 336
 
         """
         DPO 算法的损失函数。
@@ -1003,86 +1013,107 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
             self.eval()
         
         self.logger.print('***** Running training *****')
+
+        # ==================================================================
+        # 步骤 1: 改进并实现正确的恢复训练 (Resume Training) 逻辑
+        # ==================================================================
+        epochs_trained = 0
+        steps_trained_in_current_epoch = 0
+        
+        # 检查是否提供了有效的检查点路径用于恢复
+        if self.args.resume_from_ckpt and os.path.isdir(self.args.resume_from_ckpt):
+            self.logger.print(f"Resuming from checkpoint: {self.args.resume_from_ckpt}")
+            
+            # 使用 DeepSpeed 的 API 来加载模型、优化器和学习率调度器的状态
+            # 这是恢复训练的核心，它会处理好所有分布式加载的复杂性
+            # 注意：load_checkpoint 的第一个参数是 checkpoint 文件夹的父目录，tag 是文件夹名
+            checkpoint_dir_path = os.path.dirname(self.args.resume_from_ckpt)
+            checkpoint_tag = os.path.basename(self.args.resume_from_ckpt)
+            self.model.load_checkpoint(checkpoint_dir_path, tag=checkpoint_tag)
+
+            # 加载我们自己保存的 trainer 状态 (global_step, epoch 等)
+            trainer_state = load_trainer_state(self.args.resume_from_ckpt) # 假设 load_trainer_state 已定义
+            self.global_step = trainer_state.get("global_step", 0)
+            epochs_trained = trainer_state.get("epoch", 0)
+            
+            # 基于恢复的 global_step，计算出在当前 epoch 中已经训练了多少步
+            # 这用于在 dataloader 循环中跳过已经处理过的批次
+            if len(self.train_dataloader) > 0:
+                steps_trained_in_current_epoch = self.global_step % len(self.train_dataloader)
+
+            self.logger.print(f"  Resumed from global_step: {self.global_step}")
+            self.logger.print(f"  Resumed from epoch: {epochs_trained}")
+            self.logger.print(f"  Continuing training from step {steps_trained_in_current_epoch} in epoch {epochs_trained + 1}")
+        else:
+            # 如果不恢复，则从头开始
+            self.global_step = 0
+
+        # 计算总训练步数，并初始化进度条，使其从恢复的步数开始
+        total_train_steps = self.args.num_train_epochs * len(self.train_dataloader)
         progress_bar = tqdm(
-            total=self.args.num_train_epochs * len(self.train_dataloader),
-            desc=f'Training 1/{self.args.num_train_epochs} epoch',
+            total=total_train_steps,
+            initial=self.global_step, # 让进度条从 global_step 开始
+            desc=f'Training {epochs_trained + 1}/{self.args.num_train_epochs} epoch',
             position=0,
             leave=True,
             disable=not is_main_process(),
         )
-        self.global_step = 0
-        epochs_trained, steps_trained_in_current_epoch = 0, 0
-        if self.args.resume_from_ckpt is not None:
-            if self.use_ptx:
-                steps_trained_in_current_epoch = self.model.global_steps * self.args.gradient_accumulation_steps // 2
-            else:
-                steps_trained_in_current_epoch = self.model.global_steps * self.args.gradient_accumulation_steps
-            self.global_step = steps_trained_in_current_epoch
-            epochs_trained = steps_trained_in_current_epoch // len(self.train_dataloader)  # 下划取整
-            steps_trained_in_current_epoch %= len(self.train_dataloader)
-            print('\n')
-            print(steps_trained_in_current_epoch, epochs_trained, len(self.train_dataloader))
-            print(self.model.global_steps, self.args.gradient_accumulation_steps)
-            print('\n')
-            if not steps_trained_in_current_epoch:
-                _step = int(self.args.resume_from_ckpt.split('/')[-1].replace('steps', '').split('-')[-1])
-                steps_trained_in_current_epoch = _step
-        
+
+        # ==================================================================
+        # 步骤 2: 主训练循环
+        # ==================================================================
         num_prompt_only_batches = len(self.train_dataloader)
         num_ptx_batches = len(self.ptx_train_dataloader)
         num_ptx_replicas = (num_prompt_only_batches + num_ptx_batches - 1) // num_ptx_batches
         
-        for epoch in range(self.args.num_train_epochs):
-            
-            if epoch < epochs_trained:
-                progress_bar.update(len(self.train_dataloader))
-                continue
+        # 从上次中断的 epoch 开始循环
+        for epoch in range(epochs_trained, self.args.num_train_epochs):
             self.model.train()
-            for batch, ptx_batch in zip(
+            
+            # 对于分布式训练，必须在每个 epoch 开始时设置 sampler 的 epoch
+            # 这能确保数据在不同 epoch 间被正确地、可复现地打乱和分配
+            if isinstance(self.train_dataloader.sampler, DistributedSampler):
+                self.train_dataloader.sampler.set_epoch(epoch)
+
+            # 使用 enumerate 来跟踪当前 epoch 的步数 (step)
+            for step, (batch, ptx_batch) in enumerate(zip(
                 self.train_dataloader,
                 itertools.chain.from_iterable([self.ptx_train_dataloader] * num_ptx_replicas),
-            ):
-                progress_bar.update(1)
-                if steps_trained_in_current_epoch > 0:
-                    steps_trained_in_current_epoch -= 1
+            )):
+                
+                # 如果是恢复训练，跳过当前 epoch 中已经完成的步数
+                if step < steps_trained_in_current_epoch:
                     continue
-                '''
-                batch_cuda = {
-                    "input_ids": batch["input_ids"].to(self.args.device),
-                    "attention_mask": batch["attention_mask"].to(self.args.device),
-                    "labels": batch["labels"].to(self.args.device),
-                    "images": batch["images"].to(self.args.device),
-                    # 其它字段不转
-                    "category_ids": batch["category_ids"],  # 留在CPU
-                    "confidence": batch["confidence"],      # 留在CPU
-                }
-                info = self.train_step(**batch_cuda)
-                '''
-                # 如果有raw图片的话就不放在gpu里面节约显存
+
+                # 执行单步训练
                 info = self.train_step(**to_device(batch, self.args.device))
-                # torch.cuda.empty_cache()
                 if self.use_ptx:
                     ptx_info = self.ptx_step(**to_device(ptx_batch, self.args.device))
-                    # torch.cuda.empty_cache()
                 
+                # 更新全局步数和进度条
                 self.global_step += 1
+                progress_bar.update(1)
                 progress_bar.set_description(
                     f'Training {epoch + 1}/{self.args.num_train_epochs} epoch '
                     f'(loss {info["train/loss"]:.4f})',
                 )
 
+                # 记录日志
                 info['train/epoch'] = self.global_step / len(self.train_dataloader)
                 self.logger.log(info, step=self.global_step)
                 if self.use_ptx:
                     self.logger.log(ptx_info, step=self.global_step)
                 
-                if self.global_step % self.args.save_steps == 0:
-                    self.logger.print(f'Saving checkpoint at step {self.global_step} ...')
-                    self.save(global_steps=self.global_step)
-                    self.logger.print('Checkpoint saved.')
-
+                # ==========================================================
+                # 步骤 3: 调用新的保存函数 `save_training_checkpoint`
+                # ==========================================================
+                if self.global_step > 0 and self.global_step % self.args.save_steps == 0:
+                    self.logger.print(f'Saving training checkpoint at step {self.global_step} ...')
+                    # 调用新的函数来保存可恢复的训练检查点
+                    self.save_training_checkpoint(global_steps=self.global_step, epoch=epoch)
+                    self.logger.print('Training checkpoint saved.')
                 
-                
+                # 评估逻辑 (保持不变)
                 if (
                     self.args.need_eval
                     and self.args.eval_strategy == 'steps'
@@ -1091,57 +1122,146 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
                     self.logger.print(f'\n***** Evaluating at step {self.global_step} *****')
                     self.logger.log(self.eval(), step=self.global_step)
             
-            self.save(global_steps=self.global_step)
+            # 在每个 epoch 结束后，将 "steps_trained_in_current_epoch" 重置为 0
+            # 因为下一个 epoch 将会从第 0 步开始
+            steps_trained_in_current_epoch = 0
+
+            # 在每个 epoch 结束后也保存一次检查点
+            self.save_training_checkpoint(global_steps=self.global_step, epoch=epoch)
+
+            # epoch 级别的评估逻辑 (保持不变)
             if self.args.need_eval and self.args.eval_strategy == 'epoch':
                 self.logger.print(
-                    f'\n***** Evaluating at epoch {epoch + 1}/{self.args.epochs} *****',
+                    f'\n***** Evaluating at epoch {epoch + 1}/{self.args.num_train_epochs} *****',
                 )
                 self.logger.log(self.eval(), step=self.global_step)
 
-            self.model.tput_timer.update_epoch_count()
+            # 更新 DeepSpeed 的吞吐量计时器
+            if hasattr(self.model, 'tput_timer'):
+                self.model.tput_timer.update_epoch_count()
+        
+        # ======================================================================
+        # 步骤 4: 训练结束后，保存一个最终的、用于推理的模型
+        # ======================================================================
+        self.logger.print("Training finished. Saving final model for inference...")
+        # 调用新的函数来生成一个干净的、可部署的模型
+        self.save_inference_model(output_dir=os.path.join(self.args.output_dir, "final_model"))
+        self.logger.print("Final inference model saved in 'final_model' directory.")
     
-    def save(
-        self,
-        model: deepspeed.DeepSpeedEngine | None = None,
-        ds_config: dict[str, Any] | None = None,
-        global_steps: int = -1,
-    ) -> None:
-        """Save model and tokenizer in Hugging Face format."""
+    
+# 这是一个新的辅助函数，用于保存 trainer 的一些自定义状态
+    def save_trainer_state(output_dir: str, state: dict):
+        if is_main_process():
+            with open(os.path.join(output_dir, "custom_trainer_state.json"), "w") as f:
+                import json
+                json.dump(state, f, indent=4)
+
+    # 这是一个新的辅助函数，用于加载 trainer 的自定义状态
+    def load_trainer_state(output_dir: str) -> dict:
+        state_path = os.path.join(output_dir, "custom_trainer_state.json")
+        if os.path.exists(state_path):
+            with open(state_path, "r") as f:
+                import json
+                return json.load(f)
+        return {}
+    # ======================================================================
+    # MODIFICATION 3: 新增 `save_training_checkpoint` 函数
+    # ======================================================================
+    def save_training_checkpoint(self, global_steps: int, epoch: int) -> None:
+        """
+        Saves a full training checkpoint that can be used to RESUME training.
+        This uses DeepSpeed's checkpointing which saves model, optimizer, and lr_scheduler states.
+        """
+        dist.barrier()
+        
+        # DeepSpeed checkpoint tag, e.g., 'checkpoint-1000'
+        checkpoint_tag = f'checkpoint-{global_steps}'
+        
+        # DeepSpeed `save_checkpoint` 会在 `self.args.output_dir` 下创建 `checkpoint_tag` 目录
+        self.model.save_checkpoint(self.args.output_dir, tag=checkpoint_tag)
+        
+        # (推荐) 保存自定义的 trainer 状态
+        checkpoint_dir = os.path.join(self.args.output_dir, checkpoint_tag)
+        trainer_state = {
+            "global_step": global_steps,
+            "epoch": epoch,
+            # 你可以添加任何其他需要恢复的元数据
+            # "lr": self.optimizer.param_groups[0]['lr']
+        }
+        save_trainer_state(checkpoint_dir, trainer_state)
+        
+        # (可选) 同时保存 tokenizer，方便检查点自包含
+        if is_main_process():
+            self.tokenizer.save_pretrained(checkpoint_dir)
+
         dist.barrier()
 
-        if model is None:
-            model = self.model  # pylint: disable=no-member
-        if ds_config is None:
-            ds_config = self.ds_train_config  # pylint: disable=no-member
+    # ======================================================================
+    # MODIFICATION 4: 重命名并调整原来的 `save` 函数
+    # ======================================================================
+    def save_inference_model(
+            self,
+            output_dir: str, # 直接传入输出目录
+            model: Optional[deepspeed.DeepSpeedEngine] = None
+        ) -> None:
+        """
+        Saves a model in Hugging Face format, suitable for INFERENCE.
+        For DeepSpeed ZeRO Stage 3, this involves converting the sharded checkpoint.
+        """
+        dist.barrier()
         
-        output_dir = self.args.output_dir
-        if global_steps > 0:
-            output_dir = os.path.join(output_dir, f'checkpoint-{global_steps}')
-            os.makedirs(output_dir, exist_ok=True)
-
-        self.logger.print(f'Saving model to "{output_dir}" ...')
-
-        output_config_file = os.path.join(output_dir, CONFIG_NAME)
-        model_to_save: PreTrainedModel = getattr(model, 'module', model)
+        if model is None:
+            model = self.model
+        
         if is_main_process():
-            model_to_save.config.to_json_file(output_config_file)
+            os.makedirs(output_dir, exist_ok=True)
+        dist.barrier()
+
+        self.logger.print(f'Saving inference-ready model to "{output_dir}" ...')
+
+        model_to_save: PreTrainedModel = getattr(model, 'module', model)
+        is_peft_model = isinstance(model_to_save, PeftModel)
+        ds_config = self.ds_train_config
+        
+        # 保存 Tokenizer 和 Config (逻辑不变)
+        if is_main_process():
             self.tokenizer.save_pretrained(output_dir)
+            config_to_save = model_to_save.get_base_model().config if is_peft_model else model_to_save.config
+            config_to_save.to_json_file(os.path.join(output_dir, CONFIG_NAME))
 
-        # Save model checkpoint
-        if ds_config['zero_optimization']['stage'] >= 2:
-            self.logger.print('Saving DeepSpeed Checkpoints...')
-            model.save_checkpoint(output_dir)
-            self.logger.print('Converting DeepSpeed Checkpoints to Hugging Face format...')
+        # 保存权重
+        if is_peft_model:
+            self.logger.print('Saving LoRA adapter weights for inference...')
             if is_main_process():
-                subprocess.check_call(
-                    [sys.executable, 'zero_to_fp32.py', '.', WEIGHTS_NAME],  # noqa: S603
-                    cwd=output_dir,
-                )
-            dist.barrier()
+                model_to_save.save_pretrained(output_dir)
         else:
-            self.logger.print('Saving Hugging Face Checkpoints...')
-            if is_main_process():
-                model_to_save.save_pretrained(output_dir, is_main_process=True)
+            self.logger.print('Saving full model weights for inference...')
+            if ds_config and ds_config.get('zero_optimization', {}).get('stage', 0) >= 2:
+                # 这是一个临时目录，用于保存 DeepSpeed 检查点，然后进行转换
+                temp_ds_ckpt_dir = os.path.join(output_dir, "temp_ds_checkpoint")
+                
+                self.logger.print('Temporarily saving DeepSpeed Checkpoints...')
+                model.save_checkpoint(temp_ds_ckpt_dir)
+                
+                self.logger.print('Converting DeepSpeed Checkpoints to Hugging Face format...')
+                if is_main_process():
+                    # 运行 zero_to_fp32.py 脚本
+                    # 注意：脚本的第二个参数是目标文件夹，第三个参数是输出文件名
+                    subprocess.check_call([
+                        sys.executable, 
+                        # 假设 zero_to_fp32.py 在你的工作目录或者 PYTHONPATH 中
+                        'zero_to_fp32.py', 
+                        temp_ds_ckpt_dir, 
+                        os.path.join(output_dir, WEIGHTS_NAME)
+                    ])
+                    # 清理临时 DeepSpeed 检查点
+                    import shutil
+                    shutil.rmtree(temp_ds_ckpt_dir)
+                dist.barrier()
+            else:
+                self.logger.print('Saving Hugging Face Checkpoints directly...')
+                if is_main_process():
+                    model_to_save.save_pretrained(output_dir, is_main_process=True)
 
-        self.logger.print('Model saved!')
-    
+        dist.barrier()
+        self.logger.print('Inference-ready model saved!')
