@@ -1,94 +1,77 @@
 import json
 import os
 
-# --- 配置 ---
-# 输入文件路径
-input_file_path = '/data/ruipeng.zhang/dpo_on/RLHF-V-Dataset_3.json'
-# 输出文件路径
-output_file_path = '/data/ruipeng.zhang/dpo_on/RLHF-V-Dataset_4.json'
-# --- 配置结束 ---
+def convert_json_array_format(input_path, output_path):
+    """
+    读取一个标准的JSON数组文件，根据指定规则转换格式，并写入新文件。
 
-def transform_dataset(input_path, output_path):
+    Args:
+        input_path (str): 输入文件的路径 (必须是JSON数组格式)。
+        output_path (str): 输出文件的路径。
     """
-    读取、转换并保存JSON数据集。
-    """
-    print(f"开始处理文件...")
-    print(f"输入文件: {input_path}")
-    print(f"输出文件: {output_path}")
+    print("🚀 开始处理文件...")
+    print(f"    - 输入文件: {input_path}")
+    print(f"    - 输出文件: {output_path}")
 
     try:
-        # 1. 读取原始JSON文件
-        with open(input_path, 'r', encoding='utf-8') as f:
-            original_data = json.load(f)
-        print(f"成功读取 {len(original_data)} 条记录。")
+        # 1. 一次性读取整个JSON文件
+        with open(input_path, 'r', encoding='utf-8') as infile:
+            data_list = json.load(infile)
+
+        # 检查是否为列表
+        if not isinstance(data_list, list):
+            print(f"❌ 错误: 输入文件 {input_path} 的内容不是一个JSON数组 (列表)。请检查文件格式。")
+            return
+
+        # 2. 遍历列表中的每一个对象并进行修改
+        for i, item in enumerate(data_list):
+            # --- 核心转换逻辑 ---
+            # a. 获取源数据
+            cd_answer = item.get('cd_answer')
+            noisy_answer = item.get('noisy_answer')
+
+            # b. 覆盖 conversations
+            #    假设 'gpt' 的回答总是在列表的第二个位置 (索引为1)
+            if len(item.get('conversations', [])) > 1 and cd_answer is not None:
+                item['conversations'][1]['value'] = cd_answer
+            else:
+                # 给出警告，但继续处理，以防某些条目格式不同
+                print(f"⚠️ 警告: 在索引为 {i} 的条目中找不到 'conversations' 的有效结构或 'cd_answer'。")
+
+            # c. 覆盖 contrastive_conversations
+            if len(item.get('contrastive_conversations', [])) > 1 and noisy_answer is not None:
+                item['contrastive_conversations'][1]['value'] = noisy_answer
+            else:
+                print(f"⚠️ 警告: 在索引为 {i} 的条目中找不到 'contrastive_conversations' 的有效结构或 'noisy_answer'。")
+
+            # d. (可选但推荐) 清理已使用的字段
+            if 'cd_answer' in item:
+                del item['cd_answer']
+            if 'noisy_answer' in item:
+                del item['noisy_answer']
+            if 'normal_answer' in item:
+                del item['normal_answer']
+
+        # 3. 将修改后的整个列表写入新文件
+        #    使用 indent=2 使输出的JSON文件格式化，易于阅读
+        with open(output_path, 'w', encoding='utf-8') as outfile:
+            json.dump(data_list, outfile, ensure_ascii=False, indent=2)
+
+        print(f"\n✅ 处理完成！共处理 {len(data_list)} 条数据。")
 
     except FileNotFoundError:
-        print(f"错误：输入文件未找到 at '{input_path}'")
-        return
+        print(f"❌ 错误: 文件未找到 {input_path}")
     except json.JSONDecodeError:
-        print(f"错误：输入文件 '{input_path}' 不是有效的JSON格式。")
-        return
-    
-    transformed_data = []
-    
-    # 2. 遍历并转换每一条数据
-    for i, item in enumerate(original_data):
-        try:
-            # 创建一个新字典，避免在迭代时修改原始字典
-            new_item = item.copy()
-
-            # 提取需要移动的值
-            crop_answer = new_item.get('crop_answer_vicrop')
-            ori_answer = new_item.get('ori_answer_vicrop')
-
-            if crop_answer is None or ori_answer is None:
-                print(f"警告: 第 {i+1} 条记录缺少 'crop_answer_vicrop' 或 'ori_answer_vicrop'，将跳过转换。")
-                transformed_data.append(item) # 如果缺少关键字段，可以按原样添加
-                continue
-
-            # 3. 更新 'conversations' 和 'contrastive_conversations'
-            # 假设'gpt'的回答总是在第二个位置 (index 1)
-            if len(new_item['conversations']) > 1:
-                new_item['conversations'][1]['value'] = crop_answer
-            else:
-                print(f"警告: 第 {i+1} 条记录的 'conversations' 结构异常。")
-
-            if len(new_item['contrastive_conversations']) > 1:
-                new_item['contrastive_conversations'][1]['value'] = ori_answer
-            else:
-                print(f"警告: 第 {i+1} 条记录的 'contrastive_conversations' 结构异常。")
-
-            # 4. 删除不再需要的旧字段
-            # 使用 pop(key, None) 方式可以避免当key不存在时报错
-            new_item.pop('crop_answer_vicrop', None)
-            new_item.pop('ori_answer_vicrop', None)
-            new_item.pop('rejected', None) # 根据您的例子，也移除了 'rejected'
-
-            transformed_data.append(new_item)
-
-        except (KeyError, IndexError) as e:
-            print(f"处理第 {i+1} 条记录时发生错误，格式可能不符: {e}")
-            print(f"问题数据: {item}")
-            # 如果某条数据格式有问题，可以选择跳过它
-            continue
-            
-    print(f"数据转换完成，共处理 {len(transformed_data)} 条记录。")
-
-    # 5. 确保输出目录存在
-    output_dir = os.path.dirname(output_path)
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
-        
-    # 6. 将转换后的数据写入新文件
-    try:
-        with open(output_path, 'w', encoding='utf-8') as f:
-            # indent=2 使输出的JSON文件格式化，易于阅读
-            # ensure_ascii=False 确保中文字符能正确显示
-            json.dump(transformed_data, f, indent=2, ensure_ascii=False)
-        print(f"成功将转换后的数据保存到: {output_path}")
+        print(f"❌ 错误: 文件 {input_path} 不是有效的JSON格式。")
     except Exception as e:
-        print(f"写入输出文件时发生错误: {e}")
+        print(f"❌ 发生未知错误: {e}")
 
-# --- 运行脚本 ---
+# --- 配置 ---
 if __name__ == "__main__":
-    transform_dataset(input_file_path, output_file_path)
+    # 1. 定义你的文件路径
+    input_file_path = '/data/ruipeng.zhang/dpo_on/RLHF-V-Dataset_vcd.json'
+    
+    output_file_path = '/data/ruipeng.zhang/dpo_on/Dataset_vcd.json'
+    
+    # 3. 执行转换函数
+    convert_json_array_format(input_file_path, output_file_path)

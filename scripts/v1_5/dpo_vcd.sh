@@ -9,7 +9,7 @@ export WANDB_API_KEY=""
 source /data/ruipeng.zhang/anaconda3/etc/profile.d/conda.sh
 conda activate llava-dpo
 
-OUTPUT_DIR="/data/ruipeng.zhang/dpo_on/output/llava_test"
+OUTPUT_DIR="/data/ruipeng.zhang/dpo_on/output/llava_lora_r32_vcd"
 mkdir -p $OUTPUT_DIR
 
 exec 1> >(tee "${OUTPUT_DIR}/stdout.log" >&1) 2> >(tee "${OUTPUT_DIR}/stderr.log" >&2)
@@ -28,7 +28,7 @@ MASTER_PORT="$(
 export NCCL_DEBUG=INFO
 export NCCL_DEBUG_SUBSYS=INIT,P2P
 
-gpu_vis=2 # Change this to the GPUs you want to use, e.g., 0,1,2 for 3 GPUs
+gpu_vis=7 # Change this to the GPUs you want to use, e.g., 0,1,2 for 3 GPUs
 
 MODEL_PATH="/data/ruipeng.zhang/OPA-DPO/base_models/llava-v1.5-7b"
 REF_MODEL_PATH="/data/ruipeng.zhang/OPA-DPO/base_models/llava-v1.5-7b"
@@ -41,11 +41,11 @@ deepspeed --include localhost:$gpu_vis --master_port $MASTER_PORT \
     --n_random_images 0 \
     --version v1 \
     --lora_enable True \
-    --lora_r 1  \
-    --lora_alpha 1 \
+    --lora_r 32  \
+    --lora_alpha 32 \
     --lora_dropout 0.05 \
     --scale_coeff 0.1 \
-    --data_path /data/ruipeng.zhang/dpo_on/RLHF-V-Dataset_1.json \
+    --data_path /data/ruipeng.zhang/dpo_on/Dataset_vcd.json \
     --image_folder /data/ruipeng.zhang/dpo_on/RLHF-V-Dataset_images \
     --vision_tower openai/clip-vit-large-patch14-336 \
     --mm_projector_type mlp2x_gelu \
@@ -62,14 +62,14 @@ deepspeed --include localhost:$gpu_vis --master_port $MASTER_PORT \
     --gradient_accumulation_steps 8 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
-    --save_steps 30000 \
+    --save_steps 5000 \
     --learning_rate 2e-5 \
     --weight_decay 0.05 \
     --warmup_ratio 0.03 \
     --lr_scheduler_type "cosine" \
     --logging_steps 1 \
     --tf32 True \
-    --model_max_length 512 \
+    --model_max_length 2048 \
     --gradient_checkpointing False \
     --dataloader_num_workers 1 \
     --lazy_preprocess True \

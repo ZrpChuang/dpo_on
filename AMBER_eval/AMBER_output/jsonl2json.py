@@ -2,9 +2,9 @@ import json
 
 # --- 配置 ---
 # 输入的 JSONL 文件名
-input_file_path = '/data/ruipeng.zhang/dpo_on/eval/AMBER_output/AMBER_llava_responses.jsonl'
+input_file_path = '/data/ruipeng.zhang/dpo_on/AMBER_eval/AMBER_output/AMBER_llava_responses_hfv_r128.jsonl'
 # 输出的 JSON 文件名
-output_file_path = '/data/ruipeng.zhang/dpo_on/eval/AMBER_output/AMBER_llava_responses.json'
+output_file_path = '/data/ruipeng.zhang/dpo_on/AMBER_eval/AMBER_output/AMBER_llava_responses_hfv_r128.json'
 
 # --- 脚本 ---
 

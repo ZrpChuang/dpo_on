@@ -807,15 +807,6 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
                 print(f"[Warning] Sample {i} has identical text in better/worse pairs.")
             if equal_img:
                 print(f"[Warning] Sample {i} has identical images in better/worse pairs.")
-            # try:
-            #     assert not equal_text or not equal_img, 'The better and worse samples are the same!'
-            # except:
-            #     # <-- 新增：打印更详细的诊断信息
-            #     print(f"[Warning] Sample {i} has identical better/worse pairs.")
-
-            #     sidx = input_ids[i].eq(IMAGE_TOKEN_INDEX).nonzero()[0]
-            #     print(self.tokenizer.decode(input_ids[i][sidx:]))
-            #     continue
             
             coeff = 1
             if category_ids[i].eq(0):

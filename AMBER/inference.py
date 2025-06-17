@@ -292,9 +292,9 @@ def save_results_to_file(metrics, dimension, output_file):
     print("\n--- Evaluation Results ---")
     print(output_content)
     
-    with open(output_file, 'w', encoding='utf-8') as f:
-        f.write(output_content)
-    print(f"\nResults have been saved to '{output_file}'")
+    # with open(output_file, 'w', encoding='utf-8') as f:
+    #     f.write(output_content)
+    # print(f"\nResults have been saved to '{output_file}'")
 
 
 def main():
