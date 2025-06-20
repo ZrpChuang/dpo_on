@@ -7,7 +7,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--gt_files", type=str, default="/data/ruipeng.zhang/VCD/experiments/data/POPE/coco/coco_pope_popular.json")
 
 # print("bunny_f32_训练可能存在截断")
-parser.add_argument("--gen_files", type=str, default="/data/ruipeng.zhang/dpo_on/POPE_eval/llava_att_r128/coco_popular.jsonl")
+parser.add_argument("--gen_files", type=str, default="/data/ruipeng.zhang/dpo_on/POPE_eval/llava_vcd_r64/coco_popular.jsonl")
 
 
 args = parser.parse_args()

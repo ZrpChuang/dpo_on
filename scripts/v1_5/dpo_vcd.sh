@@ -9,7 +9,7 @@ export WANDB_API_KEY=""
 source /data/ruipeng.zhang/anaconda3/etc/profile.d/conda.sh
 conda activate llava-dpo
 
-OUTPUT_DIR="/data/ruipeng.zhang/dpo_on/output/llava_lora_r32_vcd"
+OUTPUT_DIR="/data/ruipeng.zhang/dpo_on/output/llava_lora_r64_vcd"
 mkdir -p $OUTPUT_DIR
 
 exec 1> >(tee "${OUTPUT_DIR}/stdout.log" >&1) 2> >(tee "${OUTPUT_DIR}/stderr.log" >&2)
@@ -42,7 +42,7 @@ deepspeed --include localhost:$gpu_vis --master_port $MASTER_PORT \
     --version v1 \
     --lora_enable True \
     --lora_r 32  \
-    --lora_alpha 32 \
+    --lora_alpha  \
     --lora_dropout 0.05 \
     --scale_coeff 0.1 \
     --data_path /data/ruipeng.zhang/dpo_on/Dataset_vcd.json \
@@ -62,7 +62,7 @@ deepspeed --include localhost:$gpu_vis --master_port $MASTER_PORT \
     --gradient_accumulation_steps 8 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
-    --save_steps 5000 \
+    --save_steps 50000 \
     --learning_rate 2e-5 \
     --weight_decay 0.05 \
     --warmup_ratio 0.03 \

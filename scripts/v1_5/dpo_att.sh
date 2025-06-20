@@ -9,7 +9,7 @@ export WANDB_API_KEY=""
 source /data/ruipeng.zhang/anaconda3/etc/profile.d/conda.sh
 conda activate llava-dpo
 
-OUTPUT_DIR="/data/ruipeng.zhang/dpo_on/output/llava_lora_r128_att"
+OUTPUT_DIR="/data/ruipeng.zhang/dpo_on/output/llava_lora_r64_att"
 mkdir -p $OUTPUT_DIR
 
 exec 1> >(tee "${OUTPUT_DIR}/stdout.log" >&1) 2> >(tee "${OUTPUT_DIR}/stderr.log" >&2)
@@ -28,7 +28,7 @@ MASTER_PORT="$(
 export NCCL_DEBUG=INFO
 export NCCL_DEBUG_SUBSYS=INIT,P2P
 
-gpu_vis=7 # Change this to the GPUs you want to use, e.g., 0,1,2 for 3 GPUs
+gpu_vis=4 # Change this to the GPUs you want to use, e.g., 0,1,2 for 3 GPUs
 
 MODEL_PATH="/data/ruipeng.zhang/OPA-DPO/base_models/llava-v1.5-7b"
 REF_MODEL_PATH="/data/ruipeng.zhang/OPA-DPO/base_models/llava-v1.5-7b"
@@ -41,8 +41,8 @@ deepspeed --include localhost:$gpu_vis --master_port $MASTER_PORT \
     --n_random_images 0 \
     --version v1 \
     --lora_enable True \
-    --lora_r 128  \
-    --lora_alpha 128 \
+    --lora_r 64  \
+    --lora_alpha 64 \
     --lora_dropout 0.05 \
     --scale_coeff 0.1 \
     --data_path /data/ruipeng.zhang/dpo_on/RLHF-V-Dataset_4.json \
@@ -63,7 +63,7 @@ deepspeed --include localhost:$gpu_vis --master_port $MASTER_PORT \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
     --save_steps 30000 \
-    --learning_rate 2e-5 \
+    --learning_rate 1e-5 \
     --weight_decay 0.05 \
     --warmup_ratio 0.03 \
     --lr_scheduler_type "cosine" \

@@ -33,13 +33,13 @@ echo "Conda环境已激活: $(which python)" # 打印Python解释器路径以确
 PYTHON_SCRIPT="AMBER_llava.py"
 
 # 从外部传入或在此处硬编码的核心参数,就是为hfv服务的
-MODEL_PATH="/data/ruipeng.zhang/dpo_on/output/llava_lora_r128_att"
-OUTPUT_FILE="/data/ruipeng.zhang/dpo_on/AMBER_eval/AMBER_output/AMBER_llava_responses_att_r128.jsonl"
+MODEL_PATH="/data/ruipeng.zhang/dpo_on/output/llava_lora_r16_att"
+OUTPUT_FILE="/data/ruipeng.zhang/dpo_on/AMBER_eval/AMBER_output/AMBER_llava_responses_att_r16.jsonl"
 
 # 其他参数将使用Python脚本中定义的默认值。
 # 如果也想在这里指定，可以取消下面几行的注释并修改：
 MODEL_BASE="/data/ruipeng.zhang/OPA-DPO/base_models/llava-v1.5-7b"
-export CUDA_VISIBLE_DEVICES="2"  # 设置可见的GPU设备
+export CUDA_VISIBLE_DEVICES="7"  # 设置可见的GPU设备
 
 # --- 3. 执行Python脚本 ---
 echo "即将执行Python推理脚本..."
