@@ -217,3 +217,7 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/*.arrow
 *.arrow
+
+
+RLHF-V-Dataset_images_crop_auto/
+RLHF-V-Dataset_images_crop/
