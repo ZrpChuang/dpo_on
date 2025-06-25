@@ -9,7 +9,7 @@ export WANDB_API_KEY=""
 source /data/ruipeng.zhang/anaconda3/etc/profile.d/conda.sh
 conda activate llava-dpo
 
-OUTPUT_DIR="/data/ruipeng.zhang/dpo_on/output/llava_lora_r64_mix"
+OUTPUT_DIR="/data/ruipeng.zhang/dpo_on/output/llava_lora_r32_mix"
 mkdir -p $OUTPUT_DIR
 
 exec 1> >(tee "${OUTPUT_DIR}/stdout.log" >&1) 2> >(tee "${OUTPUT_DIR}/stderr.log" >&2)
@@ -41,8 +41,8 @@ deepspeed --include localhost:$gpu_vis --master_port $MASTER_PORT \
     --n_random_images 0 \
     --version v1 \
     --lora_enable True \
-    --lora_r 64  \
-    --lora_alpha 64 \
+    --lora_r 32  \
+    --lora_alpha 32 \
     --lora_dropout 0.05 \
     --scale_coeff 0.1 \
     --data_path /data/ruipeng.zhang/dpo_on/RLHF-V-Dataset_mix.json \

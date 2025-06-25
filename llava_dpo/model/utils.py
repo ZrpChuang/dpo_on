@@ -24,6 +24,11 @@ def auto_upgrade(config):
 
 def gather_log_probabilities(logits: torch.Tensor, labels: torch.LongTensor) -> torch.Tensor:
     """Gather log probabilities of the given labels from the logits."""
+    # # --- [调试代码开始] ---
+    # print("\n--- [DEBUG] Entering 'gather_log_probabilities' (the low-level utility) ---")
+    # print(f"Received logits shape: {logits.shape}")
+    # print(f"Received labels shape: {labels.shape}")
+    # # --- [调试代码结束] ---
     log_probs = F.log_softmax(logits.float(), dim=-1)
     log_probs_labels = log_probs.gather(dim=-1, index=labels.long().unsqueeze(dim=-1))
     return log_probs_labels.squeeze(dim=-1)

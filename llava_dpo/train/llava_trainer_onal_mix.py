@@ -532,25 +532,51 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
     ) -> torch.Tensor:
         """Compute log probabilities of given sequences.该函数输入文本、标签和（可选）图像，
         输出每个 token 的log probability（对数概率），可选返回 logits，常用于对比损失或奖励计算。"""
+
+
         logits = model(input_ids, attention_mask=attention_mask, images=images).logits
 
-        return gather_log_probabilities(logits[:, :-1], labels[:, 1:]), \
-            (logits[:, :-1] if self.args.gamma != 1 and self.args.use_logits else None)
+        # 标准的 logits 和 labels 对齐操作
+        logits_for_gather = logits[:, :-1]
+        labels_for_gather = labels[:, 1:]
 
-# def gather_log_probabilities(logits: torch.Tensor, labels: torch.LongTensor) -> torch.Tensor:
-#     """Gather log probabilities of the given labels from the logits."""
-#     log_probs = F.log_softmax(logits.float(), dim=-1)
-#     log_probs_labels = log_probs.gather(dim=-1, index=labels.long().unsqueeze(dim=-1))
-#     return log_probs_labels.squeeze(dim=-1)
-# 这段代码的作用是：
-# 给定模型输出的 logits（未归一化的分数）和对应的标签 labels，计算每个标签对应的对数概率（log probability）。
 
-# 具体步骤如下：
+        vocab_size = model.config.vocab_size
 
-# F.log_softmax(logits.float(), dim=-1)：先对 logits 做 softmax，然后取对数，得到每个类别的对数概率。
-# log_probs.gather(dim=-1, index=labels.long().unsqueeze(dim=-1))：根据 labels，从 log_probs 中选出每个样本对应标签的对数概率。
-# squeeze(dim=-1)：去掉多余的维度，返回一维的对数概率张量。
-# 简单来说，这个函数就是用来获取每个样本标签在模型输出中的对数概率，常用于计算损失函数（如交叉熵损失）。
+        log_probs = gather_log_probabilities(logits_for_gather, labels_for_gather)
+        optional_logits = logits_for_gather if self.args.gamma != 1 and self.args.use_logits else None
+
+        return log_probs, optional_logits
+    
+    # In your Trainer class (e.g., llava_trainer_onal_mix.py)
+
+    def compute_sequence_log_probs(
+        self,
+        model: torch.nn.Module,
+        input_ids: torch.LongTensor,
+        attention_mask: torch.BoolTensor,
+        labels: torch.LongTensor,
+        images: torch.Tensor,
+    ) -> torch.Tensor:
+        # model(...) 返回的 logits 形状通常为 [batch_size, sequence_length, vocab_size]
+        logits = model(
+            input_ids=input_ids, 
+            attention_mask=attention_mask, 
+            images=images
+        ).logits
+
+        # 2. 使用原始的、简单的移位对齐方式
+        # 这是语言模型计算损失的标准做法，但它假设了 logits 和 labels 在此之前序列长度是匹配的
+        logits_for_loss = logits[:, :-1, :]
+        labels_for_loss = labels[:, 1:].clone()
+
+        # 3. 调用工具函数计算 log probs
+        # 使用清洗过的 labels 进行 gather 操作
+        sequence_log_probs = gather_log_probabilities(logits_for_loss, labels_for_loss)
+
+
+        return sequence_log_probs
+
 
     @torch.no_grad()
     def eval_step(
@@ -571,8 +597,8 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
         attention_mask = torch.cat([better_attention_mask, worse_attention_mask], dim=0)
         labels = torch.cat([better_labels, worse_labels], dim=0)
         if images is not None:
-            better_images, worse_images = images[:,0,:,:,:], images[:,1,:,:,:]
-            images = torch.cat([better_images, worse_images], dim=0)
+            better_images, worse_images = images[:,0,:,:,:], images[:,0,:,:,:]
+            images = torch.cat([better_images, better_images], dim=0)
         
         label_mask = torch.logical_and(labels.ne(IMAGE_TOKEN_INDEX), labels.ne(IGNORE_INDEX))
         labels = (labels * label_mask).long()
@@ -700,7 +726,7 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
                 batch_size = better_input_ids.size(0)
                 input_ids_list = better_input_ids.tolist()
                 image_start_pos_list = [ids.index(IMAGE_TOKEN_INDEX) for ids in input_ids_list]
-                
+                #这个也有待确认
                 self.model.module.config.output_attentions = True
                 self.model.module.config.standard_attention_layer_idx = ATT_LAYER
                 
@@ -750,36 +776,45 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
             batch_size = better_input_ids.size(0)
             w_mk = torch.full((batch_size,), 0.5, device=self.model.device)
             w_vcd = torch.full((batch_size,), 0.5, device=self.model.device)
+        # ========================================================================
+        #          Part 1: DPO/MK 损失计算 (为RA-CAL保留部分结果)
+        # ========================================================================
 
-
-        # -------------------------------------------------------------------- #
-        #                      (B) MK数据处理和损失计算
-        # -------------------------------------------------------------------- #
-        
+        # --- STAGE 1.1: 准备用于前向传播的批处理输入 ---
         if images is not None:
-            better_images, worse_images = images[:,0,:,:,:], images[:,1,:,:,:]
+            # 假设 'better' 和 'worse' 响应都使用同一张主图
+            better_images = images[:, 0:1, :, :, :]
+            images_mk = torch.cat([better_images, better_images], dim=0)
         else:
-            better_images, worse_images = None, None
+            images_mk = None
 
-        images_mk = torch.cat([better_images, worse_images], dim=0) if images is not None else None
         input_ids = torch.cat([better_input_ids, worse_input_ids], dim=0)
         attention_mask = torch.cat([better_attention_mask, worse_attention_mask], dim=0)
         labels = torch.cat([better_labels, worse_labels], dim=0)
+
+        # 创建用于计算 log_probs 的安全标签 (过滤掉特殊 token)
         label_mask = torch.logical_and(labels.ne(IMAGE_TOKEN_INDEX), labels.ne(IGNORE_INDEX))
         labels_mk = (labels * label_mask).long()
-        better_label_mask, worse_label_mask = label_mask[:, 1:].chunk(chunks=2, dim=0)
-        
+
+        # --- STAGE 1.2: 执行前向传播以获取对数概率 ---
         sequence_log_probs, _  = self.compute_log_probs(self.model.module, input_ids=input_ids, attention_mask=attention_mask, labels=labels_mk, images=images_mk)
         better_log_probs, worse_log_probs = sequence_log_probs.chunk(chunks=2, dim=0)
-        
+
         self.reference_model.eval()
         with torch.no_grad():
             ref_sequence_log_probs, _ = self.compute_log_probs(self.reference_model.module, input_ids=input_ids, attention_mask=attention_mask, labels=labels_mk, images=images_mk)
             ref_better_log_probs, ref_worse_log_probs = ref_sequence_log_probs.chunk(chunks=2, dim=0)
-        
+
+        # --- STAGE 1.3: [关键优化] 立即清理大型拼接张量 ---
+        del input_ids, attention_mask, labels, labels_mk, images_mk, sequence_log_probs, ref_sequence_log_probs
+
+        # --- STAGE 1.4: 逐样本计算 DPO 损失 ---
+        better_label_mask, worse_label_mask = label_mask.chunk(chunks=2, dim=0)
+        del label_mask
+
         mk_losses_per_sample = [] 
         mk_better_sample_rewards, mk_worse_sample_rewards = [], []
-        mk_coef_list = [] # Assuming this is used elsewhere, keeping it.
+        mk_coef_list = [] # 假设在别处使用，予以保留
 
         for i in range(batch_size):
             coeff = 1
@@ -791,7 +826,6 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
             
             better_start_index, better_end_index = get_answer_index(better_input_ids[i], final_answer=True), better_attention_mask[i].nonzero()[-1]
             better_seq_slice = slice(better_start_index - 1, better_end_index)
-            # --- 优化点: 移除了 return_average=self.args.ipo ---
             ith_better_log_probs = calculate_log_probs(better_log_probs[i, better_seq_slice], better_label_mask[i, better_seq_slice])
             ith_ref_better_log_probs = calculate_log_probs(ref_better_log_probs[i, better_seq_slice], better_label_mask[i, better_seq_slice])
             better_log_ratio = ith_better_log_probs - ith_ref_better_log_probs
@@ -799,7 +833,6 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
             
             worse_start_index, worse_end_index = get_answer_index(worse_input_ids[i], final_answer=True), worse_attention_mask[i].nonzero()[-1]
             worse_seq_slice = slice(worse_start_index - 1, worse_end_index)
-            # --- 优化点: 移除了 return_average=self.args.ipo ---
             ith_worse_log_probs = calculate_log_probs(worse_log_probs[i, worse_seq_slice], worse_label_mask[i, worse_seq_slice])
             ith_ref_worse_log_probs = calculate_log_probs(ref_worse_log_probs[i, worse_seq_slice], worse_label_mask[i, worse_seq_slice])
             worse_log_ratio = ith_worse_log_probs - ith_ref_worse_log_probs
@@ -809,27 +842,94 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
             mk_coeff = coeff
             if self.args.importance_sampling: pass
             
-            # --- 优化点: 移除了 if self.args.ipo 判断，直接使用 DPO 损失 ---
             loss = mk_coeff * (-F.logsigmoid(self.scale_coeff * mk_logits) * (1 - label_smoothing) - F.logsigmoid(-self.scale_coeff * mk_logits) * label_smoothing)
             mk_losses_per_sample.append(loss)
 
         mk_loss_tensor = torch.stack(mk_losses_per_sample)
-        mk_loss = (mk_loss_tensor * w_mk).mean()
 
-        # -------------------------------------------------------------------- #
-        #                      (C) 显存清理
-        # -------------------------------------------------------------------- #
-        del (
-            images_mk, input_ids, attention_mask, labels, labels_mk, label_mask, better_label_mask, worse_label_mask,
-            sequence_log_probs, better_log_probs, worse_log_probs,
-            ref_sequence_log_probs, ref_better_log_probs, ref_worse_log_probs,
-        )
+        # --- STAGE 1.5: [关键优化] 清理 DPO 计算的中间变量，但保留 RA-CAL 所需的 ---
+        del worse_log_probs, ref_worse_log_probs, worse_label_mask, mk_losses_per_sample
+        # [修改点] better_log_probs, ref_better_log_probs, better_label_mask 被保留下来给 Part 2 使用
+
+        # ========================================================================
+        #          Part 2: RA-CAL 损失计算 (复用 DPO 结果，显存和计算双重优化)
+        # ========================================================================
+        ra_cal_loss_tensor = torch.zeros_like(mk_loss_tensor)
+
+        if getattr(self.args, 'lambda_cal', 0) > 0 and images is not None:
+            has_image_mask = torch.any(better_input_ids == IMAGE_TOKEN_INDEX, dim=1)
+            
+            if not torch.any(has_image_mask):
+                ra_cal_loss_tensor.fill_(0)
+            else:
+                # --- STAGE 2.1: 计算 "With-Crop" 部分的 reward ---
+                # 这部分仍然需要一次新的前向传播，因为图像输入是 (主图, 裁剪图)
+                B, L = better_input_ids.shape
+                new_len = L + 1
+                racal_input_ids = torch.full((B, new_len), self.tokenizer.pad_token_id, dtype=torch.long, device=self.model.device)
+                racal_labels = torch.full((B, new_len), IGNORE_INDEX, dtype=torch.long, device=self.model.device)
+                first_image_token_pos = torch.argmax((better_input_ids == IMAGE_TOKEN_INDEX).int(), dim=1)
+
+                for i in range(B):
+                    if not has_image_mask[i]:
+                        racal_input_ids[i, :L] = better_input_ids[i]
+                        racal_labels[i, :L] = better_labels[i]
+                        continue
+                    p = first_image_token_pos[i].item()
+                    racal_input_ids[i, :p] = better_input_ids[i, :p]
+                    racal_labels[i, :p] = better_labels[i, :p]
+                    racal_input_ids[i, p:p+2] = IMAGE_TOKEN_INDEX
+                    racal_labels[i, p:p+2] = IGNORE_INDEX
+                    src_input_tail = better_input_ids[i, p + 1:]
+                    src_label_tail = better_labels[i, p + 1:]
+                    len_to_copy = src_input_tail.shape[0]
+                    if len_to_copy > 0:
+                        dest_start_pos = p + 2
+                        racal_input_ids[i, dest_start_pos : dest_start_pos + len_to_copy] = src_input_tail
+                        racal_labels[i, dest_start_pos : dest_start_pos + len_to_copy] = src_label_tail
+
+                racal_attention_mask = racal_input_ids.ne(self.tokenizer.pad_token_id)
+                racal_label_mask = torch.logical_and(racal_labels.ne(IMAGE_TOKEN_INDEX), racal_labels.ne(IGNORE_INDEX))
+                racal_labels_safe = (racal_labels * racal_label_mask).long()
+                
+                main_img = images[:, 0:1, ...].contiguous()
+                crop_img = images[:, 1:2, ...].contiguous()
+                _images_with_crop_tensor = torch.cat([main_img, crop_img], dim=1)
+                images_with_crop = [img for img in _images_with_crop_tensor]
+                
+                policy_logp_cw_seq = self.compute_sequence_log_probs(self.model.module, racal_input_ids, racal_attention_mask, racal_labels_safe, images_with_crop)
+                with torch.no_grad():
+                    ref_logp_cw_seq = self.compute_sequence_log_probs(self.reference_model.module, racal_input_ids, racal_attention_mask, racal_labels_safe, images_with_crop)
+
+                reward_with_crop = self.scale_coeff * (policy_logp_cw_seq.sum(-1) - ref_logp_cw_seq.sum(-1).detach())
+                del policy_logp_cw_seq, ref_logp_cw_seq, _images_with_crop_tensor, images_with_crop, main_img, crop_img
+                del racal_input_ids, racal_attention_mask, racal_labels, racal_labels_safe # racal 相关的文本输入也完成了使命
+
+                # --- STAGE 2.2: [关键优化] 复用 DPO 结果计算 "Without-Crop" 部分的 reward ---
+                # 注意：这里的 log_probs 是基于原始的 better_input_ids (L) 而不是 racal_input_ids (L+1)
+                # 这是一种近似，但极大地节省了计算和显存
+                # 我们需要对整个序列求和来得到每个样本的 log prob
+                policy_logp_cl = (better_log_probs * better_label_mask[:, 1:]).sum(-1)
+                ref_logp_cl = (ref_better_log_probs * better_label_mask[:, 1:]).sum(-1)
+                reward_without_crop = self.scale_coeff * (policy_logp_cl - ref_logp_cl.detach())
+
+                # --- STAGE 2.3: 计算最终 RA-CAL 损失并彻底清理 ---
+                ra_cal_logits = reward_with_crop - reward_without_crop
+                cal_loss = -F.logsigmoid(ra_cal_logits)
+                ra_cal_loss_tensor = torch.where(has_image_mask, cal_loss, torch.zeros_like(cal_loss))
+
+                del (
+                    reward_with_crop, reward_without_crop, ra_cal_logits, cal_loss, has_image_mask,
+                    policy_logp_cl, ref_logp_cl, # 复用DPO结果产生的中间变量
+                    better_log_probs, ref_better_log_probs, better_label_mask # 确保所有从DPO传来的变量被清理
+                )
+        # 两个主要计算块之间进行一次缓存清理
         torch.cuda.empty_cache()
-
+        
         # -------------------------------------------------------------------- #
         #                      (D) VCD数据处理和损失计算
         # -------------------------------------------------------------------- #
-        images_vcd = torch.cat([better_images, worse_images], dim=0) if images is not None else None
+        images_vcd = torch.cat([better_images, better_images], dim=0) if images is not None else None
         vcd_input_ids = torch.cat([vcd_better_input_ids, vcd_worse_input_ids], dim=0)
         vcd_attention_mask = torch.cat([vcd_better_attention_mask, vcd_worse_attention_mask], dim=0)
         vcd_labels_raw = torch.cat([vcd_better_labels, vcd_worse_labels], dim=0)
@@ -876,13 +976,37 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
             vcd_losses_per_sample.append(loss)
 
         vcd_loss_tensor = torch.stack(vcd_losses_per_sample)
-        vcd_loss = (vcd_loss_tensor * w_vcd).mean()
         
-        # -------------------------------------------------------------------- #
+        # ==================================================================== #
         #                      (E) 合并损失，反向传播及指标聚合
-        # -------------------------------------------------------------------- #
-        total_loss = mk_loss + vcd_loss
+        # ==================================================================== #
+
+        # 1. 损失组合：实现我们讨论过的最终加权方案
+        #    ra_cal_loss_tensor 已经是 per-sample 的了，如果没计算则是0张量
+        mk_total_loss_per_sample = mk_loss_tensor + self.args.lambda_cal * ra_cal_loss_tensor
         
+        weighted_mk_loss = (w_mk * mk_total_loss_per_sample).mean()
+        weighted_vcd_loss = (w_vcd * vcd_loss_tensor).mean()
+        
+        total_loss = weighted_mk_loss + weighted_vcd_loss
+
+        # 2. 调试打印语句
+        # 仅在主进程 (rank 0) 上打印，避免日志混乱
+        if self.args.local_rank == 0 or self.args.local_rank == -1:
+            # 为了打印，我们计算未加权的平均损失值
+            unweighted_mk_dpo_loss = mk_loss_tensor.mean().item()
+            unweighted_vcd_dpo_loss = vcd_loss_tensor.mean().item()
+            unweighted_ra_cal_loss = ra_cal_loss_tensor.mean().item()
+
+            print(
+                f"\n[Rank 0 DEBUG] Losses -> "
+                f"Total: {total_loss.item():.4f} | "
+                f"MK_DPO: {unweighted_mk_dpo_loss:.4f} | "
+                f"VCD_DPO: {unweighted_vcd_dpo_loss:.4f} | "
+                f"RA_CAL (λ={self.args.lambda_cal}): {unweighted_ra_cal_loss:.4f}"
+            )
+
+        # 3. 反向传播
         self.model.backward(total_loss)
         self.model.step()
 
@@ -890,9 +1014,8 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
         #                      指标聚合
         # -------------------------------------------------------------------- #
 
-        # --- Rewards 指标聚合 ---
+        # --- Rewards 指标聚合 (不变) ---
         if mk_better_sample_rewards:
-            # 确保列表中的张量都在同一个设备上，然后stack
             mk_better_sample_rewards_tensor = torch.stack(mk_better_sample_rewards)
             mk_worse_sample_rewards_tensor = torch.stack(mk_worse_sample_rewards)
             
@@ -901,14 +1024,12 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
             worse_sample_rewards = mk_worse_sample_rewards_tensor.mean()
             rewards_margin = better_sample_rewards - worse_sample_rewards
         else:
-            # 如果batch中没有有效样本，则初始化为0
             rewards_accuracy = torch.tensor(0.0, device=self.model.device)
             better_sample_rewards = torch.tensor(0.0, device=self.model.device)
             worse_sample_rewards = torch.tensor(0.0, device=self.model.device)
             rewards_margin = torch.tensor(0.0, device=self.model.device)
 
-        # --- Coef 指标聚合 (如果 mk_coef_list 仍在使用) ---
-        # 如果你不再填充 mk_coef_list，可以安全地移除这个if/else块
+        # --- Coef 指标聚合 (不变) ---
         if mk_coef_list:
             max_coef = torch.stack(mk_coef_list, dim=0).max()
             avg_coef = torch.stack(mk_coef_list, dim=0).mean()
@@ -920,22 +1041,19 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
         #                      分布式训练下的同步 (All Reduce)
         # -------------------------------------------------------------------- #
         
-        # 同步总损失
         loss_reduced = get_all_reduce_mean(total_loss)
         
-        # --- 关键修改：同步未加权的损失，以获得可比较的指标 ---
-        # `mk_loss_tensor` 和 `vcd_loss_tensor` 保存了每个样本的原始损失
-        mk_loss_reduced = get_all_reduce_mean(mk_loss_tensor.mean())
-        vcd_loss_reduced = get_all_reduce_mean(vcd_loss_tensor.mean())
+        # 为了日志记录，我们同步未加权的平均损失
+        mk_dpo_loss_reduced = get_all_reduce_mean(mk_loss_tensor.mean())
+        vcd_dpo_loss_reduced = get_all_reduce_mean(vcd_loss_tensor.mean())
+        ra_cal_loss_reduced = get_all_reduce_mean(ra_cal_loss_tensor.mean())
 
-        # 同步 Rewards 指标
+        # 同步 Rewards 和 Coef 指标 (不变)
         better_sample_rewards_reduced = get_all_reduce_mean(better_sample_rewards)
         worse_sample_rewards_reduced = get_all_reduce_mean(worse_sample_rewards)
         rewards_accuracy_reduced = get_all_reduce_mean(rewards_accuracy)
         rewards_margin_reduced = get_all_reduce_mean(rewards_margin)
-        
-        # 同步 Coef 指标
-        max_coef_reduced = get_all_reduce_max(max_coef) # max_coef 用 get_all_reduce_max
+        max_coef_reduced = get_all_reduce_max(max_coef)
         avg_coef_reduced = get_all_reduce_mean(avg_coef)
 
         # -------------------------------------------------------------------- #
@@ -944,8 +1062,9 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
         
         return_dict = {
             'train/loss': loss_reduced.item(),
-            'train/mk_loss': mk_loss_reduced.item(),
-            'train/vcd_loss': vcd_loss_reduced.item(),
+            'train/mk_dpo_loss': mk_dpo_loss_reduced.item(),
+            'train/vcd_dpo_loss': vcd_dpo_loss_reduced.item(),
+            'train/ra_cal_loss': ra_cal_loss_reduced.item(),
             'train/better_sample_rewards': better_sample_rewards_reduced.item(),
             'train/worse_sample_rewards': worse_sample_rewards_reduced.item(),
             'train/rewards_accuracy': rewards_accuracy_reduced.item(),
@@ -955,16 +1074,14 @@ class DPOLLaVATrainer(LLaVATrainer, Trainer):
             'train/avg_coef': avg_coef_reduced.item(),
         }
 
-        # --- 新增：只有在动态加权时才聚合和添加权重日志 ---
         if getattr(self.args, 'dynamic_loss_weighting', False):
-            # 同步权重指标
             avg_w_mk_reduced = get_all_reduce_mean(w_mk.mean())
             avg_w_vcd_reduced = get_all_reduce_mean(w_vcd.mean())
-            # 添加到返回字典
             return_dict['train/avg_weight_mk'] = avg_w_mk_reduced.item()
             return_dict['train/avg_weight_vcd'] = avg_w_vcd_reduced.item()
         
         return return_dict
+        # <--- MODIFICATION END ---
     
     def ptx_step(
         self,

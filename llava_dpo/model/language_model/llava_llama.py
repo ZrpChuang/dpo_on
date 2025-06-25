@@ -36,7 +36,36 @@ class LlavaLlamaModel(LlavaMetaModel, LlamaModel):
     def __init__(self, config: LlamaConfig):
         super(LlavaLlamaModel, self).__init__(config)
 
+# ==========================================================
+    #           在这里，LlavaLlamaModel 类的内部，添加新方法
+    # ==========================================================
+    
+    def set_vision_tower(self, vision_tower):
+        """
+        一个辅助方法，用于强制设置 vision_tower 对象。
+        """
+        self.vision_tower = vision_tower
+    
+    def initialize_vision_projector(self, config):
+        """
+        一个辅助方法，用于单独初始化 mm_projector。
+        """
+        projector_type = getattr(config, 'mm_projector_type', 'linear')
+        mm_hidden_size = config.hidden_size
+        vision_hidden_size = getattr(config, 'mm_vision_tower_hidden_size', config.vision_config.hidden_size)
 
+        if projector_type == 'linear':
+            self.mm_projector = torch.nn.Linear(vision_hidden_size, mm_hidden_size)
+        elif projector_type == 'mlp2x_gelu':
+            self.mm_projector = torch.nn.Sequential(
+                torch.nn.Linear(vision_hidden_size, mm_hidden_size),
+                torch.nn.GELU(),
+                torch.nn.Linear(mm_hidden_size, mm_hidden_size)
+            )
+        else:
+            raise ValueError(f"Unknown projector type: {projector_type}")
+
+    # --- 添加结束 ---
 class LlavaLlamaForCausalLM(LlamaForCausalLM, LlavaMetaForCausalLM):
     config_class = LlavaConfig
 
@@ -97,7 +126,8 @@ class LlavaLlamaForCausalLM(LlamaForCausalLM, LlavaMetaForCausalLM):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict
         )
-
+    def set_vision_tower(self, vision_tower):
+        self.vision_tower = vision_tower
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, inputs_embeds=None, **kwargs):
         images = kwargs.pop("images", None)
         _inputs = super().prepare_inputs_for_generation(

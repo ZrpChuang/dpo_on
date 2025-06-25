@@ -4,10 +4,10 @@ import argparse
 from tqdm import tqdm
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--gt_files", type=str, default="/data/ruipeng.zhang/VCD/experiments/data/POPE/coco/coco_pope_popular.json")
+parser.add_argument("--gt_files", type=str, default="/data/ruipeng.zhang/VCD/experiments/data/POPE/coco/coco_pope_adversarial.json")
 
 # print("bunny_f32_训练可能存在截断")
-parser.add_argument("--gen_files", type=str, default="/data/ruipeng.zhang/dpo_on/POPE_eval/llava_vcd_r64/coco_popular.jsonl")
+parser.add_argument("--gen_files", type=str, default="/data/ruipeng.zhang/dpo_on/POPE_eval/llava_vcd_r64/coco_adversarial.jsonl")
 
 
 args = parser.parse_args()

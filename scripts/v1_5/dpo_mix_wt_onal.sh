@@ -1,15 +1,16 @@
 #!/bin/bash
-# RLHF-V-Dataset_images
+
 export WANDB_MODE=offline
 export WANDB_API_KEY=""
-
+# CUDA_LAUNCH_BLOCKING=
+# unset CUDA_LAUNCH_BLOCKING
 # 设置环境变量
 # 激活目标环境、
 # 初始化 Conda
 source /data/ruipeng.zhang/anaconda3/etc/profile.d/conda.sh
 conda activate llava-dpo
 
-OUTPUT_DIR="/data/ruipeng.zhang/dpo_on/output/llava_lora_r64_mix"
+OUTPUT_DIR="/data/ruipeng.zhang/dpo_on/output/llava_lora_r32_mix_wt_on"
 mkdir -p $OUTPUT_DIR
 
 exec 1> >(tee "${OUTPUT_DIR}/stdout.log" >&1) 2> >(tee "${OUTPUT_DIR}/stderr.log" >&2)
@@ -28,21 +29,21 @@ MASTER_PORT="$(
 export NCCL_DEBUG=INFO
 export NCCL_DEBUG_SUBSYS=INIT,P2P
 
-gpu_vis=4,5 # Change this to the GPUs you want to use, e.g., 0,1,2 for 3 GPUs
+gpu_vis=5 # Change this to the GPUs you want to use, e.g., 0,1,2 for 3 GPUs
 
 MODEL_PATH="/data/ruipeng.zhang/OPA-DPO/base_models/llava-v1.5-7b"
 REF_MODEL_PATH="/data/ruipeng.zhang/OPA-DPO/base_models/llava-v1.5-7b"
 
 deepspeed --include localhost:$gpu_vis --master_port $MASTER_PORT \
-    --module llava_dpo.train.dpo_mix_train \
+    --module llava_dpo.train.dpo_mix_train_onal \
     --deepspeed ./scripts/zero2.json \
     --model_name_or_path $MODEL_PATH \
     --ref_model_name_or_path $REF_MODEL_PATH \
     --n_random_images 0 \
     --version v1 \
     --lora_enable True \
-    --lora_r 64  \
-    --lora_alpha 64 \
+    --lora_r 32  \
+    --lora_alpha 32 \
     --lora_dropout 0.05 \
     --scale_coeff 0.1 \
     --data_path /data/ruipeng.zhang/dpo_on/RLHF-V-Dataset_mix.json \
@@ -76,3 +77,4 @@ deepspeed --include localhost:$gpu_vis --master_port $MASTER_PORT \
     --log_project LLaVA-DPO-WL \
     --report_to wandb \
     --dynamic_loss_weighting False \
+    --lambda_cal 0.1 \

@@ -104,9 +104,9 @@ if __name__ == "__main__":
     parser.add_argument("--model-path", type=str, default="/data/ruipeng.zhang/dpo_on/output/llava_lora_r16_att")
     parser.add_argument("--model-base", type=str, default="/data/ruipeng.zhang/OPA-DPO/base_models/llava-v1.5-7b")
     parser.add_argument("--image-folder", type=str, default="/data/ruipeng.zhang/VCD/experiments/data/coco/val2014")
-    parser.add_argument("--question-file", type=str, default="/data/ruipeng.zhang/VCD/experiments/data/POPE/coco/coco_pope_adversarial.json")
+    parser.add_argument("--question-file", type=str, default="/data/ruipeng.zhang/VCD/experiments/data/POPE/coco/coco_pope_popular.json")
     #我猜应该不是这个“问题文件”导致模型输出只有yes或者no
-    parser.add_argument("--answers-file", type=str, default="/data/ruipeng.zhang/dpo_on/POPE_eval/llava_att_r16/coco_adversarial.jsonl") #这个是输出
+    parser.add_argument("--answers-file", type=str, default="/data/ruipeng.zhang/dpo_on/POPE_eval/llava_vcd_r16/coco_popular.jsonl") #这个是输出
     parser.add_argument("--conv-mode", type=str, default="llava_v1")
     parser.add_argument("--num-chunks", type=int, default=1)
     parser.add_argument("--chunk-idx", type=int, default=0)
